@@ -1,0 +1,276 @@
+\documentclass[10pt]{article}
+\usepackage{tmlr}
+\usepackage{amsmath,amssymb,booktabs,graphicx,array,microtype}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{url}
+\newcommand{\ind}{\mathbf{1}}
+\input{generated/macros.tex}
+\title{How Monitor Targets Change Alert Evaluation\\in Tool-Using Agents}
+\author{Anonymous authors}
+\begin{document}
+\maketitle
+\begin{abstract}
+An agent can complete a customer's request while breaking a rule along the way. A monitor may correctly warn about that rule, yet an evaluation that checks only the final database can count the warning as a false alarm. We examine this mismatch in simulated retail and airline tasks, then test what happens when warnings can stop a database change. Across three separately analyzed test cohorts, we collect 227 completed conversations on 60 task IDs. In the largest cohort, an exact interaction-rule detector warns on 84 of 133 conversations with correct final states. Restricting evaluation to the 49 successes that also follow the rule gives zero warnings, without changing the detector. Matched-input comparisons show that changing the question asked of a model also changes warnings, in model-dependent directions. Warning timing distinguishes detection of a visible violation from advance prediction. An exploratory live follow-up uses eight designed forbidden requests, eight permitted counterparts, one actor model and four gate conditions, yielding 64 attempts. Without a gate, the actor executes covered violations in three of eight forbidden-request conversations; none executes under the three gate conditions. For example, each gate blocks a proposed ineligible \$300 credit before it changes the database. Replay confirms three intercepted state-changing violations per gate, excluding actions the tools would already reject. Gates also interrupt permitted work, and three control conversations remain incomplete. These results establish concrete interception benefits in a small experiment, not stable population effects, frontier-model generalization or comprehensive policy compliance. We provide executable analyses, matched monitor inputs and retained incomplete attempts.
+\end{abstract}
+
+\section{Introduction}
+Consider a customer-service agent that updates an order correctly. Before making the change, it requests two harmless database lookups in the same message, even though its instructions permit only one tool call at a time. A separate monitor sees the proposed calls and warns that the agent is breaking the rule. The final order is correct. Is the warning a false alarm?
+
+The answer depends on what the monitor is meant to check. If its job is to flag violations of the one-call rule, the warning is justified. If its job is only to predict an incorrect final order, the correct order does not support that warning. This is an illustrative example, not an additional experimental observation. It captures the distinction our experiments measure: \emph{a correct outcome does not make every warning unnecessary}.\footnote{LLM-based tools assisted with research planning, coding and analysis.}
+
+A tool-using agent sends requests to software that reads or changes an environment, as in ReAct and Toolformer \citep{yao2023react,schick2023toolformer}. We call that acting model the \emph{agent}, and the separate model or program that checks its behavior the \emph{monitor}. The monitor's \emph{target} is the particular problem it is asked to detect: for example, a wrong final order, an interaction-rule violation, or an ineligible cancellation. These are different targets and require different reference labels.
+
+Procedure-Aware Evaluation already shows that benchmark success can conceal procedural violations \citep{cao2026procedure}. AI Agents That Matter also identifies broader weaknesses in agent benchmarking, including inadequate holdouts and poor reproducibility \citep{kapoor2025agents}. Our contribution is not the discovery of these evaluation problems. We examine what it means for \emph{scoring monitor warnings and interpreting their timing}, and test a bounded application in which a warning can stop a proposed database change. We distinguish two changes that are easily confused. Changing the evaluator's definition of an error can change the reported warning rate without changing any monitor output. Changing the question asked of a monitor can change its actual warnings, even when it sees exactly the same conversation.
+
+We use simulated retail and airline customer-service tasks. The original $\tau$-bench evaluates outcomes by comparing the final database with a reference state \citep{yao2024tau}. We run a pinned version of the maintained $\tau^2$-Bench implementation \citep{barres2025tau2}, using its retail and airline environments rather than its dual-control telecom setting. Database matching remains a useful outcome measure. We ask what additional information is needed when a monitor is also expected to check rules about how the task is performed.
+
+The audit asks four questions:
+\begin{enumerate}
+\item \textbf{Which warnings count as false alarms?} We compare warnings on all successful outcomes with warnings on successful outcomes that also pass a specified rule check.
+\item \textbf{When does the warning arrive?} We distinguish a warning before a violation is visible from one that detects the proposed violation itself.
+\item \textbf{What changes when the monitoring question changes?} We give monitors identical recorded conversations and ask them to check different targets.
+\item \textbf{What does a live gate actually prevent?} We intercept proposed writes, let the agent continue, and distinguish prevented changes from actions the native tools would already reject.
+\end{enumerate}
+
+Table~\ref{tab:roadmap} explains the purpose and size of each collection. The first three cohorts use reserved test tasks and are analyzed separately. Later studies examine rules about permitted database changes. Constructed cancellation examples isolate a rule under controlled facts; a pilot and a new-task study examine conversations generated by agents without editing their proposed actions. The latter provide a useful check on alert differences, but limited evidence about detecting substantive violations. A subsequent live follow-up therefore uses explicit forbidden requests with permitted counterparts. Its actor generates its own responses and tool choices; a scripted customer supplies facts and bounded pressure. This supplies concrete intervention evidence, while remaining separate from the earlier test cohorts.
+
+\begin{table}[t]
+\centering\small
+\caption{Study roadmap. A task is a customer scenario; a conversation is one attempt to carry it out. Repeated attempts do not create new tasks. Sources are upstream task IDs except in the live follow-up, which uses eight designed source pairs. Constructed monitor fixtures are separate from agent-generated conversations.}
+\label{tab:roadmap}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{.21\linewidth}rrp{.41\linewidth}}
+\toprule
+Study & Sources & Completed / planned & Purpose\\
+\midrule
+Original test cohort & 12 & 48 / 48 & Compare outcome labels, rule violations and warning timing.\\
+First test extension & 6 & 24 / 24 & Obtain successes that follow the interaction rule; add repeat runs.\\
+Remaining-test expansion & 42 & 155 / 168 & Expand task coverage and compare three monitors.\\
+Substantive-rule pilot & 12 & 23 / 24 & Check feasibility of labeling selected policy rules.\\
+New-task study & 24 & 96 / 96 & Compare three monitoring questions on the same recorded inputs.\\
+Live-gating follow-up & 8 pairs & 61 / 64 & Intercept forbidden writes and track permitted-task outcomes.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{What counts as an error, and when is it visible?}
+\label{sec:targets}
+\subsection{Three separate checks}
+We record three answers for each conversation: did the final database match the requested outcome, did the agent break the selected rule, and did the monitor warn? Keeping these answers separate prevents a rule violation from disappearing inside an overall success label.
+
+For the reserved-test cohorts, \emph{state success} means that the native final-database check matches its reference and the conversation ends normally. We write this as $G=1$. It does not certify every requirement in the natural-language policy.
+
+Our first rule check concerns the format of the agent's messages. The agent must not propose more than one tool call in a message, or combine tool calls with nonempty text addressed to the user. We write $V=1$ if either violation occurs. A simple parser can check this rule directly. We use \emph{interaction-clean} to mean that neither violation was observed ($V=0$); the term says nothing about other policies. The two-lookup example in the introduction violates this rule even if both lookups are harmless.
+
+At each monitored decision, the model returns a numeric score $s_t$. We count a warning when the score is at least 0.5, writing $A_t=\ind[s_t\geq0.5]$. A conversation has a warning if any scored decision crosses that threshold: $A=\max_t A_t$. The threshold was fixed during development. These scores have not been calibrated as probabilities of failure.
+
+\subsection{Two ways to select conversations that should not need a warning}
+An evaluation needs examples that it regards as having no error. These are often called \emph{negative examples}; here, ``negative'' means no target violation, not a bad outcome. We compare two choices:
+\begin{enumerate}
+\item \textbf{Correct final outcome:} every conversation with state success, including those that break the interaction rule.
+\item \textbf{Correct final outcome and no interaction violation:} only state successes that also pass that rule check.
+\end{enumerate}
+The resulting warning rates are
+\begin{align}
+ F_G &= \Pr(A=1\mid G=1),\\
+ F_{G,\neg V} &= \Pr(A=1\mid G=1,V=0).
+\end{align}
+Neither is automatically a full-policy false-alarm rate. A warning in the second group could still concern a different, unchecked policy. We therefore name the checks used to select the denominator whenever we report a rate.
+
+For example, the remaining-test expansion contains 133 state successes. Of these, 84 break the interaction rule and 49 follow it. A detector that warns exactly when this rule is broken produces 84 warnings among the 133 successes, and zero among the 49 interaction-clean successes. The change from 84/133 to 0/49 comes entirely from choosing different comparison conversations. It is not an improvement to the detector.
+
+\subsection{Formal accounting and warning time}
+Let $q=\Pr(V=1\mid G=1)$. Where the relevant conditional populations have nonzero support, the law of total probability gives
+\begin{equation}
+ F_G=q\Pr(A=1\mid G=1,V=1)+(1-q)F_{G,\neg V}.
+ \label{eq:decomposition}
+\end{equation}
+This is an accounting identity, not a new statistical estimator. The distinction between an intended construct and its operational measurement has a broader precedent in measurement-validity research \citep{jacobs2021measurement}; here we apply it to explicit monitor targets. In words, the warning rate among all state successes is a weighted average of the rates among those that break the rule and those that follow it. Thus, an exact contract detector with $A=V$ has $F_G=q$, although its false-alarm rate on contract-clean state successes is zero when that population exists. If every state success violates the contract, the second rate is undefined. Reporting a zero denominator as zero false alarms would conceal the lack of negative examples.
+
+Timing needs the same care. In the opening example, a warning issued after the monitor sees both proposed lookup calls detects an already visible violation; it does not predict the violation in advance. Let $t_V$ be the first offending assistant proposal and $t_A$ the first alert. A monitor that receives that proposal and alerts at $t_A=t_V$ performs detection at the decision boundary. It has not demonstrated prediction before the violation became observable. This clock also prevents a post-tool observation from being credited with preventing an action already executed. We report before, at, after, and absent alerts separately; we do not infer the first irreversible task mistake from a terminal state label.
+
+\section{How the conversations and warnings were collected}
+\label{sec:protocol}
+\subsection{Development and held-out allocation}
+This section describes the original test cohort and its monitor-input controls. Later sections state what changes in each additional study. Development used four upstream-training task IDs, two per domain. It produced 15 completed initial trajectories and one infrastructure interruption; a separately recorded new attempt later completed that cell. These data informed the audit and do not enter the held-out estimates. Forty development reference paths were also checked for equivalence under the initial interface wrapper. A released CPU-monitor reproduction is reported separately in Appendix~\ref{app:reproduction}.
+
+For the original cohort, six upstream-test task IDs per domain were selected before any model outputs were collected. We sorted their identifiers using a fixed SHA256 hash, a reproducible ordering that does not use outcomes. Each of the 12 tasks was run once with each of two acting models under each of two tool-name conditions: 12 times 2 times 2 gives 48 planned conversations. We call each assigned combination a collection cell. Tasks with an initial message history would be ineligible because that mapping was not implemented; no task was excluded by that rule. The task list, hypotheses, threshold, missingness policy and planned analysis were frozen locally. Execution amendments and output-truncation handling are separately recorded; they do not change model settings or remove selected task cells. This is a prospective local protocol record, not an externally registered preregistration.
+
+Task IDs are disjoint from development. They are not claimed to be disjoint task families: the domains reuse workflows and databases. For a sensitivity analysis, we group tasks whose reference solutions use the same ordered sequence of tool operations. This is a coarse measure of shared workflow, not proof that the groups are independent task families. The evaluation therefore supports a descriptive audit of this sample, not an estimate for all customer-service deployments.
+
+\subsection{Actors, interfaces and execution}
+The benchmark revision is \texttt{b7ea9074c1cba482b30687fecdb5c8425fd6f619} from the maintained Sierra Research repository. We use its native retail and airline tools, task data, agent prompt and customer-simulator orchestration. The acting models are Claude Sonnet 5 and DeepSeek V4.1 Flash; the customer simulator is fixed to Claude Sonnet 5. Gateway model IDs, provider allowlists, token limits and reasoning settings are in Appendix~\ref{app:configuration}. These are hosted aliases, not immutable weight snapshots. Sampling is not seed-pinned.
+
+The original interface uses native tool names. The renamed interface adds \texttt{service\_} to each tool name except \texttt{calculate}, whose ordinary-language use in documentation would introduce an additional wording change. Visible references are updated, arguments and execution remain unchanged, and an evaluator-only inverse map restores canonical names. Invalid legacy names remain invalid. All 12 selected reference paths were checked for equal tool responses, errors and intermediate database states before paid collection. This is an executable interface change, unlike a change applied only to stored monitor inputs.
+
+Each original-cohort conversation is limited to 60 orchestration steps; later cohorts use separately declared limits. Infrastructure interruptions are retained separately from bounded task outcomes. A transport retries selected transient HTTP errors at most twice after the initial attempt, preserves each attempt, and keeps the model/provider route fixed. No trajectory is silently replaced. Retail and airline collection use isolated processes sharing a locked study budget; this scheduling-only amendment was recorded before the assigned airline cells ran. Actor and interface order alternates within the fixed allocation.
+
+The interface experiment pairs tasks, not stochastic conversations. The user simulator can respond differently across conditions, so an observed difference combines actor and dialogue variation. We do not interpret a one-run paired difference as an isolated effect of naming on a monitor.
+
+\subsection{Monitor inputs and baselines}
+The original language-model monitor is Gemini 3.8 Flash with a fixed prompt asking about incorrect task outcomes, unfulfilled requests or policy violations. It receives the current public policy, current tool schemas, and the conversation so far, ending with the current proposed action. We call this visible portion a \emph{public prefix}. It does not receive private user instructions, reference actions, final database state, future messages or the eventual trajectory length. Each input has a stored hash, and tests verify that modifying hidden outcomes or future turns does not change an earlier input.
+
+For the reserved-test cohorts, we request a score at every model-generated assistant decision and retain invalid outputs as missing. Proposed tool calls are visible, but their results are not. Earlier tool errors are visible only after their responses arrive. Four transparent baselines share this observation clock: never alert; alert after an observed tool error; alert on a third identical proposed call; and alert on an explicit interaction-contract violation. Recovered tool errors and repeated calls are heuristic warning signals, not ground-truth task failures. The contract baseline is exact for $V$ by construction, which is its intended role as a diagnostic control.
+
+\subsection{Controlled monitor-input checks}
+An initial development diagnostic holds eight original-interface trajectories fixed. For each, it takes the first generated assistant decision and first multi-call proposal, giving 16 prefixes from four task IDs. Each prefix is scored twice unchanged and once after a reversible tool-name/documentation transformation. The 48 calls rotate arm order. Argument constraints, conversation length and observed behavior are preserved. No label or state transition is changed, and this experiment is not described as a new live actor trajectory.
+
+An exploratory held-out follow-up is specified before its monitor calls. It selects one actor/interface cell per task by a fixed hash and uses its first batch proposal, if present. Cells without a batch, or with an earlier mixed text/tool violation that would survive the intervention, remain explicitly ineligible. Three arms repeat the strict-policy input, change only the public sentence governing batch calls to permit them in listed order, or retain the strict policy but ask an outcome-focused monitoring question. The latter excludes interaction-format violations alone as evidence of an incorrect final database state. These interventions test score interpretation at identical proposed actions. They are not live actor interventions or evidence of improved task completion.
+
+\subsection{Analysis and uncertainty}
+We report raw counts by domain, actor and interface. State/contract discordance is estimated as $\sum GV/\sum G$. Apparent alert rates are evaluated against both named negative classes without calling either comprehensive ground truth. First-alert timing is measured against the first visible interaction violation. A final failed outcome alone does not tell us when a task first went wrong.
+
+Invalid or truncated structured responses are missing scores, never negative predictions. When a valid alert precedes every missing prefix in an episode, both its any-alert status and first-alert time are still identified. We verify that condition before including such an episode in the alert analysis. One same-setting recovery of a truncated response was attempted and separately retained; no token-cap increase or score imputation was used.
+
+Bootstrap resampling provides an empirical uncertainty estimate \citep{efron1979bootstrap}. Prior work on stochastic agent evaluation highlights the sensitivity of conclusions to few runs and reporting choices \citep{henderson2018matters,agarwal2021precipice}. The reserved-test uncertainty analysis uses 5,000 bootstrap replicates, stratified by domain and resampling whole task IDs with all actor/interface cells together. A second analysis resamples reference-operation-sequence groups. These intervals describe variability across a small finite sample; they are not deployment guarantees. Undefined replicate denominators are counted, and degenerate intervals are not evidence of certainty. No prefix is treated as an independent task, no hypothesis is selected by its $p$-value, and no held-out data are used to tune a threshold or train a detector.
+
+\section{What the reserved-test conversations show}
+\label{sec:results}
+\input{editorial/results_text.tex}
+
+\begin{table}[t]
+\centering\small
+\caption{Original test cohort: counts by domain, acting model and tool-name condition. State success means database matching with normal termination. The contract column covers only the two explicit interaction constraints.}
+\label{tab:cohort}
+\input{generated/cohort_table.tex}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.96\linewidth]{figures/label_matrix.pdf}
+\caption{State and interaction-contract outcomes for every held-out cell. Task rows, rather than individual decisions, are the sampling units. Passing one check does not imply passing the other.}
+\label{fig:matrix}
+\end{figure}
+
+\begin{table}[t]
+\centering\small
+\caption{Original Gemini warnings on successful outcomes, with and without requiring interaction-rule compliance. Entries are alerting episodes / negative episodes. ``Undefined'' means no eligible negative examples, not zero false alarms. These checks do not cover every policy, so the entries are not full-policy error rates.}
+\label{tab:rates}
+\input{generated/rates_table.tex}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.78\linewidth]{figures/alert_timing.pdf}
+\caption{First Gemini warning versus first interaction-rule violation in the original cohort. Points on the diagonal mean the monitor warns when it first sees the violating proposal. Episodes with no observed violation or no alert are reported separately in the text; overlapping points are sized by their count.}
+\label{fig:timing}
+\end{figure}
+
+\subsection{Renaming tools differs from changing the rule or the question}
+Renaming a tool leaves the underlying rule unchanged; allowing several calls changes the rule itself. We tested these separately. The development renaming diagnostic produces no alert flips at the fixed threshold. Mean absolute risk change relative to the two original scores is 0.003125, with a maximum of 0.05; repeated-original differences are zero in all 16 pairs. These prefixes lie near low-risk initial exchanges or obvious batch violations, so the result is a narrow negative finding. It does not establish invariance in ambiguous mid-trajectory cases, across arbitrary aliases, or for trained telemetry monitors.
+
+\input{editorial/ablation_text.tex}
+\begin{table}[t]
+\centering\small
+\caption{Exploratory matched-prefix ablation. The strict repeat, relaxed batch policy and outcome-focused prompt share the same tools and recorded conversation. Eligibility and all selected cells are retained in the artifact.}
+\label{tab:ablation}
+\input{generated/ablation_table.tex}
+\end{table}
+
+\input{editorial/extension.tex}
+\input{editorial/replication.tex}
+
+\input{editorial/substantive_extension.tex}
+
+\input{editorial/live_gating.tex}
+
+\input{editorial/practical_use_expanded.tex}
+
+\section{Implications and limitations}
+\label{sec:discussion}
+\paragraph{A successful outcome does not settle whether a warning was justified.}
+An evaluator may legitimately care only about state outcomes. A policy-aware monitor may legitimately care about a broader event. The mistake is to interpret their disagreement without stating that their targets differ. Equation~\ref{eq:decomposition} provides a direct accounting of that difference. We measure this difference explicitly; it does not allege that any particular published monitor used the wrong labels.
+
+\paragraph{A simple rule checker explains part of the result.}
+Detecting multiple tool calls in one proposal is simple. When a language-model warning appears at the same boundary, its presence is not evidence that temporal modeling or broad semantic reasoning was needed. Conversely, a contract baseline cannot detect every wrong task state or semantic policy violation. It should be retained as a diagnostic control rather than presented as a complete safety monitor.
+
+\paragraph{Changing the policy and changing a tool name are different tests.}
+Tool renaming with consistently updated documentation aims to preserve the task and policy. Explicitly allowing a previously forbidden batch changes the normative label. These are different interventions. Their effects should not be pooled into one ``distribution shift'' score or assumed to require the same adaptation mechanism. Likewise, asking a model to predict an incorrect state rather than any policy violation changes the requested target, not merely the wording of a fixed classifier.
+
+\paragraph{Different rules support different claims.}
+A batch of harmless read calls can violate the stated interaction contract without causing user harm. We report the literal rule because it is unambiguous and executable, not because every breach is dangerous. The interaction-rule counts must not be extrapolated to privacy, authorization or complete procedural integrity. The separately constructed cancellation cases test one substantive eligibility rule through explicit simulator facts; they do not provide comprehensive semantic labels for autonomous conversations. The new autonomous-conversation extension checks six selected literal predicates with two implementations and explicitly excludes policy--tool discrepancy cases in sensitivity analysis. The live follow-up demonstrates intercepted changes under eight selected executable rules, including compensation eligibility and required identity lookup. These are substantive improvements over read-call batching as test cases, but still do not cover every natural-language obligation. Human semantic adjudication remains outside the reported evidence; candidate review materials have not been treated as reviewed labels.
+
+\paragraph{More conversations do not necessarily mean more independent evidence.}
+The original cohort contains 12 task IDs and one run per actor/interface cell; two later cohorts add six and 42 task IDs with repeated instruction conditions. Together these cover all 60 reserved upstream-test IDs but only 51 distinct exact reference-operation sequences. Workflow and database reuse remain substantial, and operation sequences are only a coarse dependency proxy. The third monitor comes from a model family absent from actors and the customer simulator; DeepSeek still shares a family with one actor, and the fixed Sonnet customer shares a family with the other. Comparisons are between complete monitor configurations, including model size and reasoning settings, not controlled architecture comparisons. Public benchmark scenarios may have appeared in training. Hosted aliases, unseeded sampling and execution-time variation limit exact regeneration. Interrupted attempts and missing monitor scores remain explicit; complete-case estimates need not be unbiased if missingness is informative. Four source reservations support the constructed eligibility pairs, which are deliberately idealized and provide no natural violation prevalence estimate. Saved records make the analyses reproducible, not future model sampling deterministic. The new extension uses additional training IDs and two actor configurations but does not establish new-domain transfer or independent semantic task families. Its monitor family GPT-5.4 Mini also serves as an actor, so shared-family judgments remain a limitation. The live follow-up adds only eight designed source pairs, one per rule, with one actor model and one rollout per cell. Its scripted customer is not a sample of real customer behavior, and its aggregate condition differences include sampling variation. Independently authored task families, repeated frontier-actor runs, additional customer simulators and externally validated semantic targets would be needed for broader claims.
+
+\paragraph{Interception evidence does not establish general superiority.}
+The live study directly establishes that specific gate blocks prevented covered database changes in the simulator. It does not establish real-world harm reduction, a stable improvement in overall task success, or a superior gate design across populations. Its one-step replay does not identify how an entire ungated conversation would have unfolded. We do not fit a learned monitor, calibrate a deployment threshold or compare learned adaptation strategies. Reproducing a baseline on its own released traces does not establish performance on our task distribution.
+
+\section{Related work}
+\label{sec:related}
+\paragraph{Tool capability and interactive evaluation.}
+API generation, retrieval and invocation are studied by Gorilla, ToolLLM and API-Bank \citep{patil2023gorilla,qin2023toolllm,li2023apibank}. These capabilities enable an agent to act but do not, by themselves, certify that a particular action is permitted. AgentBench evaluates interactive decision making across environments, while GAIA combines reasoning, information access and tool use \citep{liu2023agentbench,mialon2023gaia}. WebArena and WorkArena evaluate web tasks, OSWorld evaluates computer use, and SWE-bench evaluates repository modifications \citep{zhou2023webarena,drouin2024workarena,xie2024osworld,jimenez2024swebench}. They illustrate the diversity of execution environments and success criteria to which a monitoring method might be applied. Our retail/airline results establish no transfer to these settings. AppWorld's state-based unit tests also check unintended changes \citep{trivedi2024appworld}; thus, state-based evaluation need not be limited to checking a requested endpoint. The scope of the actual evaluator matters.
+
+\paragraph{Process, outcomes and apparent success.}
+AgentBoard supplements final success with fine-grained progress analysis \citep{ma2024agentboard}. Procedure-Aware Evaluation directly studies successful outcomes that conceal procedural violations \citep{cao2026procedure}. Our contribution follows that distinction and asks how it changes a monitor's negative class and warning clock; our interaction rule and constructed eligibility subset are narrower than their procedural taxonomy. False-success analysis studies agents that claim completion despite unsuccessful environment states \citep{advani2026false}. That is complementary to our central case: the measured final state succeeds, yet a declared procedure is violated. Work on process supervision in mathematical reasoning also separates intermediate-step feedback from outcome feedback \citep{lightman2023verify}. We neither train a process reward model nor infer agent-policy compliance from that study's results.
+
+\paragraph{Agent safety and adversarial environments.}
+ToolEmu uses an emulated sandbox to expose potential tool-use risks \citep{ruan2023toolemu}. AgentDojo and InjecAgent evaluate indirect prompt-injection attacks against tool-integrated agents \citep{debenedetti2024agentdojo,zhan2024injecagent}; AgentHarm studies malicious tasks, and Agent-SafetyBench covers multiple safety risks and failure modes \citep{andriushchenko2024agentharm,zhang2024agentsafety}. These are distinct targets from an interaction-format rule or a cancellation-eligibility predicate. Our constructed cases use deterministic simulator facts and native tool execution, not a comprehensive harm taxonomy. Their role is to isolate one authorization-related rule while holding the proposed operation fixed. They do not validate adversarial robustness or establish the frequency of real-world harm.
+
+\paragraph{Warning, diagnosis and repair.}
+PrefixGuard learns online warnings from structured trace views \citep{huang2026prefix}. Real-time telemetry monitoring studies deployment adaptation, verification and repair \citep{dubey2026monitor}; its released adaptation code refits a normalizer and detector before threshold calibration, so refitting is not a contribution here. AgentRx localizes critical steps in failed trajectories using an evidence-based diagnostic framework \citep{barke2026agentrx}. ReliabilityBench studies repeated execution, perturbations and tool faults, while AgentCheck compares controlled fault replay and mitigation \citep{reliability2026,mazumder2026agentcheck}. These establish that repeated runs and controlled interventions are not new in themselves. Reflexion uses verbal feedback across trials, and Self-Refine iteratively revises generated outputs \citep{shinn2023reflexion,madaan2023selfrefine}. Such improvement mechanisms require their own intervention evaluation. Observing an alert alone demonstrates neither advance prediction nor repair benefit. Our separate live follow-up tests pre-execution blocking and continuation, with direct native-transition replay, rather than inferring prevention from offline warning scores.
+
+\paragraph{Model judges, explanations and uncertainty.}
+Studies of model judges and G-Eval evaluate agreement with human judgments and identify limitations of automated evaluation \citep{zheng2023judge,liu2023geval}. Their tasks and reference labels differ from the executable predicates used here. Unfaithful chain-of-thought explanations further caution against reading an explanation as a causal account of a score \citep{turpin2023unfaithful}; our short monitor reasons are retained as outputs, not used as causal ground truth. SelfCheckGPT detects factual inconsistencies through sampling, and semantic uncertainty accounts for meaning-equivalent outputs \citep{manakul2023selfcheck,kuhn2023semantic}. Neither uncertainty signal is automatically a probability of violating a tool policy. Calibration research and language-model self-evaluation distinguish numeric confidence from empirically reliable probabilities \citep{guo2017calibration,kadavath2022know}. Selective classification explicitly evaluates risk against coverage \citep{geifman2017selective}; our fixed exploratory alert threshold supplies no corresponding selective-risk guarantee.
+
+\paragraph{Evaluation validity and reuse.}
+AI Agents That Matter examines cost--accuracy tradeoffs, benchmark holdouts and reproducibility \citep{kapoor2025agents}. Our audit addresses a different measurement question: which recorded warnings count as errors, and whether their timing supports detection or prediction. We hold recorded inputs fixed when comparing monitoring questions; we do not propose a cost-optimization method or solve benchmark overfitting. HELM emphasizes multiple metrics and common evaluation conditions; CheckList organizes behavioral tests; Dynabench supports adaptive challenge creation \citep{liang2022helm,ribeiro2020checklist,kiela2021dynabench}. Our matched-input tests isolate a declared target within a fixed corpus, rather than replacing these broader evaluation programs. Underspecification shows why similar benchmark performance need not imply equivalent behavior in deployment \citep{damour2022underspecification}. Model cards and datasheets motivate explicit documentation of intended use, collection choices and limitations \citep{mitchell2019modelcards,gebru2021datasheets}. We apply that reporting principle to an audit artifact: users receive the definitions, missingness records and input provenance needed to interpret the numbers, together with a concrete workflow in Section~\ref{sec:use}.
+
+\section{Conclusion}
+A warning cannot be judged from the final outcome alone when the monitor is also asked to check how the agent acts. In our records, changing which successful conversations count as error-free changes the reported warning rate without changing the detector. Asking a model to check a different rule can also change its warnings, but the direction depends on the model. A warning issued when a forbidden action first becomes visible demonstrates detection, not advance prediction.
+
+These findings support a concrete evaluation practice: state the monitor's job, check that the reference labels cover that job, and record what evidence was visible when it warned. The live follow-up extends the evidence beyond message formatting: gates intercept an ineligible credit and other forbidden writes before they change the simulator. Permitted work can also be interrupted. This is a bounded demonstration of prevention and its tradeoffs; broader claims require more independent source scenarios, repeated actor runs and labels covering the policies of interest.
+
+\section*{Broader impact and reproducibility}
+The experiments use public benchmark scenarios with simulated customers and sandboxed database operations. They do not execute real bookings, cancellations or payments. Better target alignment can reduce misleading claims about agent reliability. A potential misuse is to treat passing a narrow contract as comprehensive safety; the artifact keeps these labels separate and the paper explicitly rejects that interpretation. The release procedure excludes credentials, local author paths and provider-account identifiers. The research artifact contains collected records, fixed prompts, configuration hashes, analysis scripts and instructions for regenerating tables and figures without paid model calls. Fresh model collection requires separate credentials and spending authorization.
+
+\bibliography{references}
+\bibliographystyle{tmlr}
+
+\appendix
+\section{Model and execution configuration}
+\label{app:configuration}
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llll}
+\toprule
+Role & Gateway model ID & Requested provider & Output cap\\
+\midrule
+Original actor/customer & \texttt{anthropic/claude-sonnet-5} & anthropic & 2048 / 1024\\
+Actor B & \texttt{deepseek/deepseek-v4.1-flash} & baseten & 2048\\
+Monitor A & \texttt{google/gemini-3.8-flash} & google & 512\\
+Monitor B & \texttt{deepseek/deepseek-v4.1-flash} & baseten & 512\\
+Monitor C & \texttt{openai/gpt-5.4-mini} & openai & 512\\
+\bottomrule
+\end{tabular}
+\end{table}
+The pilot and new-task study use DeepSeek V4.1 Flash and GPT-5.4 Mini as actors, with the same Sonnet customer; GPT-5.4 Mini is therefore not an actor-independent model family in those studies. Their actor output cap is specified in the separate frozen collection configuration. Reasoning effort is \texttt{none} for the actors/customer, DeepSeek monitor and GPT-5.4 Mini monitor, and \texttt{low} for the Gemini monitor. No explicit temperature or provider sampling seed is supplied. Provider fallback is disabled by a one-provider allowlist. Read-only generation receipts checked for one access request for each of the original Sonnet, DeepSeek and Gemini configurations agree with the requested provider and response-reported charge; this is a spot check, not an independent receipt audit of every request. Every charged attempt retains its request, response and usage record locally. The anonymous release omits account-linked generation identifiers.
+
+The earlier audit contains 16,964 API requests costing \$48.28, including \$11.88 for the 96-run collection and its matched monitoring. Subsequent preparation used 632 requests costing \$7.75; the separate 64-attempt live follow-up used 384 requests costing \$0.83. Cumulative response-reported cost is \$56.86 across 17,980 requests. Earlier unresolved reservations total \$25.4104; none was added by the 64-attempt follow-up. Preparatory records are retained separately and are not pooled into the live comparison. These are local accounting records, not a reconciled provider invoice; reservations are admission holds rather than additional charges. The study uses Python 3.13. The reserved-task collections use native benchmark orchestration; the live follow-up uses the native tools with its recorded scripted-customer controller. A separate capability probe returned multiple DeepSeek tool calls despite requesting \texttt{parallel\_tool\_calls=false}. No enforcement claim or serial-enforced benchmark condition is based on that probe. The original instruction-condition comparisons use unchanged native proposal execution. The live follow-up explicitly adds interception before native write execution.
+
+The live follow-up actor is \texttt{openai/gpt-5.4-mini} with reasoning effort \texttt{none}; the broad gate and unresolved focused checks use \texttt{google/gemini-3.1-pro-preview} with effort \texttt{high}. Each uses a fixed provider route and an 8,192-token output cap. The limits are 32 actor turns and six customer turns, with at most two scripted pressure replies. No model generates customer replies in this follow-up. Its full prompts, stopping rules, allocation, failed outcomes and source hashes are retained under \texttt{intervention\_study/live\_gating/}. Earlier feasibility runs used other actor configurations; they are preparation records, not evidence of frontier generalization from this comparison.
+
+\section{Monitor prompt and exact contract}
+The reserved-test broad monitor's fixed instruction is reproduced below; schema-constrained output contains a risk in $[0,1]$ and a short reason.
+\begin{quote}\small
+\input{generated/monitor_prompt.tex}
+\end{quote}
+The pilot and new-task study instead use three prompts with the same time horizon: a violation has already occurred or is proposed now. Their exact prompts are retained in the separate frozen monitor configuration. The exact interaction-rule label is computed for every assistant message as
+\[
+ V_t=\ind\bigl[|\mathrm{toolcalls}_t|>1\;\lor\;
+ (|\mathrm{toolcalls}_t|>0\land |\mathrm{strip}(\mathrm{text}_t)|>0)\bigr].
+\]
+Native greetings without a model request are not monitor decision points. Tool-error flags are exposed only after a tool response. Identical-call repetition compares serialized tool names and argument objects; it does not infer whether a repeat was unnecessary.
+
+\section{Released CPU-baseline reproduction}
+\label{app:reproduction}
+As an initial infrastructure check, seven CPU methods from the artifact of \citet{dubey2026monitor} were run on the authors' committed traces, at revision \texttt{1b3e07fee53ae13407173c3ea932adb4a43e8230}. Their episode AUROC, detection and healthy false-alarm columns matched the released reference to within $10^{-9}$ for every reproduced row. For the channel-max method, the reproduced detection count is 56/79 and healthy false-alarm count is 3/15, with AUROC approximately 0.8401. These are the original artifact's data and results, not measurements on our new conversations. Methods requiring the omitted deep-learning dependency were not reproduced. We make neither a full-paper reproduction claim nor a comparison between these numbers and the held-out audit.
+
+\section{Analysis audit and task allocation}
+\input{generated/task_table.tex}
+The extension adds retail task IDs 42, 94 and 77, and airline task IDs 19, 32 and 25. Their complete allocation and repeated-run ordering are in the separate extension manifest. The remaining-test expansion allocates all remaining reserved test IDs, yielding 60 allocated task IDs and 51 observed exact reference-operation groups across the three cohorts; these coarse groups do not establish independent semantic task families.
+
+The supplementary result ledger maps each manuscript count to an analysis field and its input-file hashes. Source-controlled benchmark files are unchanged. The public benchmark is distributed under its MIT license; the released monitor artifact uses Apache 2.0. Their notices are retained where their material is included. The official TMLR style is used without modifying its layout. Bootstrap intervals, raw denominators, missing cells and unscored prefixes are retained in machine-readable output.
+\clearpage
+\input{editorial/monitor_coverage.tex}
+\end{document}

@@ -1,0 +1,5 @@
+# Independent annotation packet
+
+Prepared; labels and agreement results are pending. Send only rubric.md, cases.jsonl and a separate blank annotator form to each annotator. Keep coordinator_private.json and existing audit outputs withheld until independent forms are locked. No communications are sent by this builder.
+
+After both forms are complete: `python agreement.py annotator_1.csv annotator_2.csv`. The script fails on blank, invalid or unmatched forms. Results are sample-level, before reconciliation.
