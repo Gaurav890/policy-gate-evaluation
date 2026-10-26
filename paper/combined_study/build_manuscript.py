@@ -63,7 +63,15 @@ def produce():
         blocks=list(re.finditer(r'\\begin\{(table|figure)\}.*?\\end\{\1\}',earlier,re.S))
         match=next(m for m in blocks if r'\label{'+label+'}' in m.group())
         promoted[marker]=match.group().replace('[t]', '[!htbp]')
-        earlier=earlier[:match.start()]+'The corresponding results are shown in '+('Figure' if label.startswith('fig:') else 'Table')+r'~\ref{'+label+'} in the main text.\n'+earlier[match.end():]
+        earlier=earlier[:match.start()]+earlier[match.end():]
+    for heading,pointer in [
+        (r'\section{What the reserved-test conversations show}',r'Main-text timing results: Figure~\ref{fig:timing}.'),
+        (r'\subsection{Expanded test coverage separates warning targets}',r'Main-text results: Figure~\ref{fig:expanded-targets} and Table~\ref{tab:expanded-timing}.'),
+        (r'\subsection{Changing the monitoring question changes warnings}',r'Main-text results: Table~\ref{tab:substantive-targets}.'),
+        (r'\subsection{Cancellation examples: execution does not establish eligibility}',r'Main-text results: Table~\ref{tab:policy-lab}.')]:
+        assert heading in earlier,heading
+        earlier=earlier.replace(heading,heading+'\n'+pointer+'\n',1)
+    earlier=earlier.replace('The two models move in opposite directions (Table~\\ref{tab:substantive-targets}).','The two models move in opposite directions.')
     fragments = {'EARLIER_STUDIES': earlier, 'EARLIER_RELATED_WORK': related, 'EARLIER_APPENDICES': appendices, **promoted}
     for marker, fragment in fragments.items():
         fragment = expand_inputs(fragment).replace('ruan2023toolemu', 'ruan2024toolemu')
@@ -75,7 +83,9 @@ def produce():
     assert earlier_analysis['replication']['state_rates']['gemini']['alerts'] == 86
     assert earlier_analysis['replication']['clean_rates']['gemini']['alerts'] == 2
     assert earlier_analysis['replication']['clean_successes'] == 49
-    assert 'No annotations have yet been collected' in source
+    assert 'The 65 unresolved blocks remain a limitation' in source
+    assert 'expert study is pending' not in source
+    assert 'The corresponding results are shown' not in source
     cited = set(re.findall(r'@([a-z0-9]+)', source))
     for match in re.finditer(r'\\cite[pt]?\{([^}]+)\}', source):
         cited.update(match[1].split(','))
@@ -129,7 +139,7 @@ def produce():
         assert count == len(widths)
         return text
     main_tex = table_widths(main_tex, [
-        [.23,.39,.38], [.24,.18,.20,.38], [.40,.11,.15,.17,.17],
+        [.23,.39,.38], [.22,.17,.18,.32,.11], [.40,.11,.15,.17,.17],
         [.70,.15,.15], [.24,.19,.19,.19,.19], [.20,.14,.17,.17,.14,.18], [.70,.15,.15]])
     appendix_tex = table_widths(appendix_tex, [
         [.14,.46,.23,.17], [.25,.24,.17,.17,.17], [.14,.16,.25,.28,.17],
@@ -203,7 +213,7 @@ def produce():
     readable = re.sub(r'^(#+) ',r'#\1 ',readable,flags=re.M)
     readable = re.sub(r'\{reference-type="ref" reference="[^\"]+"\}', '', readable)
     readable = re.sub(r'\[@[^\]]+\]', md_cites, readable)
-    readable = title + '\n\n**Working manuscript source - 24 October 2026.**\n\n## Abstract\n\n' + abstract + '\n\n' + readable.replace('REFERENCESMARKER',bibliography+'\n## Appendices\n')
+    readable = title + '\n\n**Working manuscript source - 26 October 2026.**\n\n## Abstract\n\n' + abstract + '\n\n' + readable.replace('REFERENCESMARKER',bibliography+'\n## Appendices\n')
     readable = re.sub(r'^:::.*\n?', '', readable, flags=re.M)
     bib = ''
     for key, r in sorted(refs.items()):
@@ -250,7 +260,7 @@ xmajorgrids=true,grid style={gray!20},axis lines=left,tick label style={font=\sm
     outputs = {'manuscript_draft.md': readable, 'manuscript.tex': manuscript_tex,
         'manuscript_body.tex': main_tex, 'manuscript_appendix.tex': appendix_tex.rstrip() + '\n',
         'manuscript_references.bib': bib.rstrip() + '\n', 'figures/assignment_bounds.tex': plot}
-    manifest = {'version': '2026-10-24-claim-organized', 'scope': 'Combined warning, policy-comparison and live-gating manuscript; cohorts and frozen analyses remain separate.',
+    manifest = {'version': '2026-10-26-review-revision', 'scope': 'Combined warning, policy-comparison and live-gating manuscript; cohorts and frozen analyses remain separate.',
         'model_calls': 0, 'references': len(refs),
         'restored_inputs_sha256': restored_inputs,
         'principal_table_builder_sha256': sha(HERE/'build_principal_tables.py'),

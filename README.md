@@ -60,6 +60,10 @@ The first run downloads the pinned environment. The verification and analysis ru
 
 This verifies the distributed checksums, compact records, released receipts and source commitments, then reproduces **eight compact tables, three earlier main-text tables, 560 descriptive paired rows and four exploratory actor contrasts**. The [release verification record](release/public_verification.json) states what was actually checked. The manuscript PDF is supplied; rendering it again is a separate step.
 
+## Independent review
+
+The [review form and coordinator instructions](review/README.md) support two independent assessments of the original 95 cases plus four supplementary cases covering omitted completion-loss blocks. Human judgments have not been collected; the paper retains the 65 unresolved blocks as a limitation.
+
 ## Explore the artifact
 
 | Start here | Purpose |

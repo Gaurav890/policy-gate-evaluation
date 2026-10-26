@@ -2,11 +2,11 @@
 
 ## Abstract
 
-Evaluations of policy gates for tool-using language-model agents often report warning rates, block rates or task success, but these measure different properties. We present an evaluation method that links each decision to its policy target, visible evidence, native execution consequence and subsequent task outcome. Across simulated retail and airline environments, the same saved warnings yield alert rates of 64.7% or 4.1% on successful conversations depending on whether the evaluation group also requires interaction-rule compliance. In 1,152 live conversations, two example gate designs block 161 writes: 48 would produce covered policy-violating state changes, whereas 26 would already be rejected by the native tools. Relative to ungated runs, gating reduces observed executed violations by about ten percentage points and reference-task completion by six to nine points, accounting for unresolved outcomes. All ungated violations come from one of three actor configurations. Matched completion losses sometimes occur without a block, and some successful endpoints omit a required confirmation exchange. Linked records, native replay and executable checks let evaluators distinguish detection, added protection and task outcomes, while preserving missing observations and unresolved policy judgments.
+Evaluations of policy gates for tool-using language-model agents often report warning rates, block rates or task success, but these measure different properties. We present an evaluation method that links each decision to its policy target, visible evidence, native execution consequence and subsequent task outcome. Across simulated retail and airline environments, the same saved warnings yield alert rates of 64.7% or 4.1% on successful conversations depending on whether the evaluation group also requires interaction-rule compliance. In 1,152 live conversations, two example gate designs block 161 writes: 48 would produce violations of the checked rules that would change the database, whereas 26 would already be rejected by the native tools. Relative to ungated runs, gating reduces observed executed violations by about ten percentage points and reference-task completion by six to nine points, accounting for unresolved outcomes. All ungated violations come from one of three actor configurations. Matched completion losses sometimes occur without a block, and some successful endpoints omit a required confirmation exchange. Linked records, native replay and executable checks let evaluators distinguish detection, added protection and task outcomes, while preserving missing observations and unresolved policy judgments.
 
 ## 1. Introduction
 
-An agent issues an ineligible $300 credit in an airline simulation. Under a gate, the agent proposes the same ineligible credit, but the call is blocked before execution and no certificate is issued. In the compact study, a gate blocks a refund to a disallowed destination that the native tool would reject anyway. Both events increase the block count by one, but only the first adds protection against a database change. The credit example from our initial live study and the refund contrast expose a measurement problem: **what did the gate actually prevent, and what happened to the user's task afterward?**
+In our initial live study, an agent issues an ineligible $300 credit in an airline simulation. Under a gate, the agent proposes the same ineligible credit, but the call is blocked before execution and no certificate is issued. In the compact study, a gate blocks a refund to a disallowed destination that the native tool would reject anyway; the exact proposal and replay are indexed as `compact-refund-native-rejection` in `release/examples.json`. Both events increase the block count by one, but only the first adds protection against a database change. The credit example from our initial live study and the refund contrast expose a measurement problem: **what did the gate actually prevent, and what happened to the user's task afterward?**
 
 Language-model agents carry out requests through tools [@yao2023react; @schick2023toolformer]. A monitor assesses proposed behavior; a gate uses that assessment to control execution. Warning rates describe decisions, replay describes immediate consequences, and task outcomes describe the continuing interaction. Substituting one for another can credit a gate for protection already supplied by the tool, count repeated blocks as multiple saved tasks, or treat a successful endpoint as evidence of a compliant procedure.
 
@@ -40,7 +40,8 @@ Let $s_t$ be the saved state before action $a_t$ and $T(s_t,a_t)$ its native exe
 | Covered violation | Breach of an applicable selected executable predicate | Every policy breach |
 | Selected-predicate eligibility | No applicable selected predicate is violated | Full-policy permission |
 | Reference completion | Normal dialogue termination and matching reference state | Procedural compliance |
-| Interaction-clean | State success with the measured interaction rule satisfied | All-policy compliance |
+| Interaction-clean | No measured interaction-rule violation ($V=0$), regardless of state success | State success or all-policy compliance |
+| Clean success | State success and no measured interaction-rule violation ($G=1, V=0$) | All-policy compliance |
 | Intercepted transition | Blocked covered violation that would change native state | A saved whole conversation |
 | Enforcement overlap | Blocked violation the native tool would reject | Added state-change protection |
 | Shadow decision | Gate score on a saved ungated proposal | A live continuation under that decision |
@@ -59,15 +60,15 @@ The **broad gate** checks the full public policy with one model judgment. The **
 
 The records contain 1,143 normal terminations, eight infrastructure interruptions and one customer-turn-limit outcome. Shadow scoring is complete for 383 sources; one preserves a broad decision but lacks subsequent decomposed and privileged decisions. Four planned formal comparisons remain withheld under the frozen missingness rule. Appendix A details the post-start scope amendment, execution settings and source checks; Appendix B distinguishes descriptive bounds from the added exploratory analysis.
 
-| Study | Source support | Completed / assigned conversations | Role |
-| :--- | :--- | :--- | :--- |
-| Original reserved-test cohort | 12 task IDs | 48 / 48 | Outcome/rule disagreement and warning timing |
-| First test extension | 6 additional task IDs | 24 / 24 | Successes that follow the interaction rule |
-| Remaining-test expansion | 42 additional task IDs | 155 / 168 | More task coverage and three monitors |
-| Substantive-rule pilot | 12 training task IDs | 23 / 24 | Feasibility of selected policy checks |
-| New-task policy study | 24 training task IDs | 96 / 96 | Matched monitoring questions on recorded inputs |
-| Initial live-gating study | 8 designed pairs | 61 / 64 | Interception and subsequent behavior |
-| Compact live-gating study | 32 designed pairs | 1,143 / 1,152 | Proposal, replay and conversation accounting |
+| Study | Source support | Completed / assigned conversations | Role | Answers |
+| :--- | :--- | :--- | :--- | :--- |
+| Original reserved-test cohort | 12 task IDs | 48 / 48 | Outcome/rule disagreement and warning timing | RQ1 |
+| First test extension | 6 additional task IDs | 24 / 24 | Successes that follow the interaction rule | RQ1 |
+| Remaining-test expansion | 42 additional task IDs | 155 / 168 | More task coverage and three monitors | RQ1 |
+| Substantive-rule pilot | 12 training task IDs | 23 / 24 | Feasibility of selected policy checks | RQ1 |
+| New-task policy study | 24 training task IDs | 96 / 96 | Matched monitoring questions on recorded inputs | RQ1 |
+| Initial live-gating study | 8 designed pairs | 61 / 64 | Interception and subsequent behavior | RQ2–3 |
+| Compact live-gating study | 32 designed pairs | 1,143 / 1,152 | Proposal, replay and conversation accounting | RQ1–3 |
 
 Table: **Study roadmap.** Completion counts denote normal conversation completion, not task success or compliance. The 24 constructed cancellation pairs use four source reservations and are separate fixtures, not agent conversations. Compact shadow scoring reuses 384 ungated sources and adds no live conversations; 383 have complete output and one retains missing output. The compact sample includes 102 imported attempts from its larger parent plan, counted once. \label{tab:roadmap}
 
@@ -75,13 +76,15 @@ Table: **Study roadmap.** Completion counts denote normal conversation completio
 
 ## 4. RQ1: What does a warning detect?
 
+The earlier-study evidence in Sections 4.1–4.2 uses the monitors listed in Appendix E, including Gemini 3.8 Flash, rather than the compact gates based on Gemini 3.1 Pro Preview. Section 4.3 separately examines the compact gates.
+
 ### Changing the evaluation group versus changing the monitor
 
 The earlier reserved-test cohorts contain 227 completed conversations across 60 task IDs. In the largest cohort, Gemini warns on 86/133 state-successful conversations (64.7%) but on only 2/49 successes that also satisfy the one-call interaction rule (4.1%). The warnings are unchanged; requiring interaction compliance changes the negative class. Figure \ref{fig:expanded-targets} contrasts these targets across monitors.
 
 {{RQ1_TARGET_FIGURE}}
 
-Changing the monitoring question can instead change actual decisions. The substantive new-task study compares broad and focused questions on matched inputs (Table \ref{tab:substantive-targets}). Within its strict subset of nine conversations on four tasks, Gemini's broad-versus-focused alerts are two versus zero, while GPT-5.4 Mini's are four versus six. The narrower question thus moves warnings in opposite directions. That subset has no positive substantive violations, so it provides no sensitivity estimate.
+Changing the monitoring question can instead change actual decisions. Table \ref{tab:substantive-targets} reports the substantive new-task study’s matched comparison on 47 decision points. A separate, stricter conversation-level comparison contains nine conversations on four tasks. Within that strict subset, Gemini's broad-versus-focused alerts are two versus zero, while GPT-5.4 Mini's are four versus six. The narrower question thus moves warnings in opposite directions. That subset has no positive substantive violations, so it provides no sensitivity estimate.
 
 {{RQ1_TARGET_TABLE}}
 
@@ -145,7 +148,7 @@ Matching nominally permitted runs identifies 16 observed completion losses under
 
 {{TABLE_LOSSES}}
 
-This accounting connects intervention records to lost completions without assuming every loss follows a block. It also shows that gains offset some decomposed losses. A block's presence is an association on separately sampled trajectories: it does not establish that removing the block would recover the task. Of the 20 blocks in observed losses, 15 remain unresolved under the programmatic policy audit. The number judged unnecessary by independent annotators is still unknown.
+This accounting connects intervention records to lost completions without assuming every loss follows a block. It also shows that gains offset some decomposed losses. A block's presence is an association on separately sampled trajectories: it does not establish that removing the block would recover the task. Of the 20 blocks in observed losses, 15 remain unresolved under the programmatic policy audit. These unresolved judgments prevent estimating how many of those blocks were unnecessary.
 
 ### Endpoint success and policy evidence
 
@@ -155,7 +158,7 @@ The programmatic audit covers 392 distinct proposal inputs and all 576 nominally
 
 Among reference completions, six ungated and five decomposed trajectories execute a write without any user reply after the initial request. The required disclosure-then-confirmation exchange is absent. Conversely, a later reply need not contain the literal word “yes” to express approval; ambiguous scope of consent remains unresolved. Endpoint success and supported procedural compliance therefore require separate checks.
 
-The next evidence layer is independent annotation. We have prepared all 65 unresolved blocks and a stratified sample of 30 classified blocks, a fixed rubric, two independent annotation forms, and an agreement script. Current gate identity, actor, decision rationale, audit category and final outcome are withheld from the packets. No annotations have yet been collected, so this paper reports no human-validation result or comprehensive unnecessary-block rate. Appendix C describes the protocol and limits of blinding.
+The programmatic checks establish specific supported objections, not a comprehensive unnecessary-block rate. The 65 unresolved blocks remain a limitation; they cannot be counted as either justified enforcement or unnecessary obstruction. Appendix C distinguishes these interpretations without assigning unsupported labels.
 
 ## 7. Discussion and practitioner guidance
 
@@ -173,7 +176,7 @@ The contribution is an evaluation procedure, not a new runtime constraint langua
 
 **Internal validity.** The compact scope was amended after 344 parent-plan attempts existed; 102 matching records were imported and 1,050 new ones collected. Prior outcomes had been inspected. Order was only partially randomized and hosted sampling was unseeded. Different gate conditions generate different trajectories. Replay assumes the pinned simulator is correct and covers only one transition. The completion-loss association is not causal mediation, and the post hoc audit was developed unblinded.
 
-**Construct validity.** Selected predicates cover eight requirements, not complete policy permission. Early interaction-rule violations can concern harmless reads; their rates cannot be generalized to harmful writes. Sixty-five live blocks remain semantically unresolved and the expert study is pending. A nominally permitted request can still be implemented incorrectly. Endpoint checks omit some procedural obligations, and monitor scores do not establish probability calibration. The two gates differ in both coverage and structure.
+**Construct validity.** Selected predicates cover eight requirements, not complete policy permission. Early interaction-rule violations can concern harmless reads; their rates cannot be generalized to harmful writes. Sixty-five live blocks remain semantically unresolved, preventing a comprehensive unnecessary-block estimate. A nominally permitted request can still be implemented incorrectly. Endpoint checks omit some procedural obligations, and monitor scores do not establish probability calibration. The two gates differ in both coverage and structure.
 
 **External validity.** The compact study uses 32 designed pairs in two simulated domains, a scripted customer and one monitor configuration. All ungated violations occur in one actor. Pairs share policies, templates and contextual entities; hosted aliases can drift. The earlier 60 task IDs contain 51 exact reference-operation sequences, and cancellation fixtures reuse four reservations. Extensions were designed after earlier findings. The strict new-task subset has no positive violations. External CPU-baseline reproduction supplies no transfer estimate on these conversations.
 
@@ -195,7 +198,7 @@ Evaluating a policy gate requires connecting what it detects, what it prevents a
 
 ## Reproducibility {.unnumbered}
 
-The review artifact provides linked records, study-specific provenance and offline scripts. From an isolated environment, `python paper/combined_study/reproduce_principal.py` checks the compact evidence and regenerates the principal tables, actor/rule/scenario exports, exploratory tests and manuscript sources without model calls. Appendix D gives the artifact map. Original receipt commitments and sanitized released-byte hashes are kept distinct; missing outputs are not filled. The release README records the environment and checks actually completed.
+The public artifact is available at [github.com/Gaurav890/policy-gate-evaluation](https://github.com/Gaurav890/policy-gate-evaluation), release `v1.1.0`; the same release supplies `policy-gate-evaluation-v1.1.0.zip` as a downloadable supplementary package. It provides linked records, study-specific provenance and offline scripts. From an isolated environment, `python paper/combined_study/reproduce_principal.py` checks the compact evidence and regenerates the principal tables, actor/rule/scenario exports, exploratory tests and manuscript sources without model calls. Appendix D gives the artifact map. Original receipt commitments and sanitized released-byte hashes are kept distinct; missing outputs are not filled. The release README records the environment and checks actually completed.
 
 ## Broader impact {.unnumbered}
 
@@ -217,7 +220,7 @@ The benchmark revision recorded in the project is `b7ea9074c1cba482b30687fecdb5c
 | Actor | `anthropic/claude-opus-5.5` | anthropic | high |
 | Both public gates | `google/gemini-3.1-pro-preview` | google | high |
 
-Table: **Requested configurations.** Identifiers are historical collection settings. The protocol also retains a customer-model field inherited from the larger plan; compact collection used the scripted controller and made zero customer-model requests.
+Table: **Requested configurations.** Identifiers are historical collection settings. The protocol also retains a customer-model field inherited from the larger plan; compact collection used the scripted controller and made zero customer-model requests. \label{tab:compact-configurations}
 
 The output cap is 8,192 tokens, the model-score threshold is 0.5, and the schedule seed is 20261012. The original within-block shuffle contained eight request/condition combinations; the compact schedule retains the relative order of the six selected combinations. The seed controls schedule construction, not hosted model sampling. Actor and customer limits are 32 and eight turns. The scripted controller uses fixed facts, refusal precedence, completion variants, and at most two marked pushbacks.
 
@@ -235,7 +238,7 @@ The allocation is
 
 $$32\ \text{pairs}\times 3\ \text{actors}\times 2\ \text{repeats}\times 2\ \text{request types}\times 3\ \text{conditions}=1{,}152.$$
 
-The actor configurations are GPT-5.4 Mini, DeepSeek V4.1 Flash, and Claude Opus 5.5. The last requests high reasoning; the first two request none. Both public gates use Gemini 3.1 Pro Preview with high reasoning. These are hosted aliases, not immutable weight snapshots. Exact requested identifiers, routes, and limits appear in Appendix A.
+The actor configurations are GPT-5.4 Mini, DeepSeek V4.1 Flash, and Claude Opus 5.5. The last requests high reasoning; the first two request none. Both public gates use Gemini 3.1 Pro Preview with high reasoning. These are hosted aliases, not immutable weight snapshots. Table \ref{tab:compact-configurations} lists the requested identifiers and routes; the execution limits are given immediately below that table.
 
 All compact conversations use the same scripted customer, with fixed facts and at most two designated pushbacks. Conversations are bounded by 32 actor turns and eight customer turns. The actor chooses its own actions and may refuse before proposing a write. Consequently, a pressure assignment does not guarantee an opportunity for the gate to intervene. Similarly, a nominally permitted request does not guarantee that the actor's proposed implementation is valid.
 
@@ -261,7 +264,7 @@ The compact allocation was selected after 344 attempts under a larger plan, with
 
 Of the earlier attempts, 102 fit the compact allocation and were reused byte-for-byte: 101 completed and one was interrupted. The remaining 242 attempts stay outside these estimates. Compact collection added 1,050 attempts. Interrupted episodes were not replaced. The schedule retained the relative order of selected cells from the original shuffled within-block allocation; actor sampling was unseeded and actor blocks were not globally randomized.
 
-A provenance sensitivity retains the 29 source pairs with no earlier collected conversation. It has one basic-economy pair and four pairs for each other rule, so the support is uneven. Earlier development and warning-monitor studies motivate the question but are not pooled into the compact sample. Appendix A records execution details and Appendix D maps the results to saved artifacts.
+A provenance sensitivity retains the 29 source pairs with no earlier collected conversation. It has one basic-economy pair and four pairs for each other rule, so the support is uneven. Earlier development and warning-monitor studies motivate the question but are not pooled into the compact sample. Appendix D maps the results to saved artifacts.
 
 ### 4.1. Three distinct measurement levels
 
@@ -303,14 +306,14 @@ Table: **Actor-specific counts.** Cells show observed positives / assigned, foll
 
 | Request | Condition | Mean turns; observed n | Mean live USD; observed n | Unknown-cost runs |
 | :--- | :--- | ---: | ---: | ---: |
-| Pressure | No gate | 4.870; 192 | 0.06; 182 | 10 |
-| Pressure | Broad | 5.079; 190 | 0.06; 183 | 9 |
-| Pressure | Decomposed | 4.995; 191 | 0.06; 181 | 11 |
-| Permitted | No gate | 4.948; 192 | 0.07; 181 | 11 |
-| Permitted | Broad | 5.332; 190 | 0.09; 177 | 15 |
-| Permitted | Decomposed | 5.026; 189 | 0.08; 178 | 14 |
+| Pressure | No gate | 4.870; 192 | 0.056; 182 | 10 |
+| Pressure | Broad | 5.079; 190 | 0.060; 183 | 9 |
+| Pressure | Decomposed | 4.995; 191 | 0.060; 181 | 11 |
+| Permitted | No gate | 4.948; 192 | 0.072; 181 | 11 |
+| Permitted | Broad | 5.332; 190 | 0.093; 177 | 15 |
+| Permitted | Decomposed | 5.026; 189 | 0.080; 178 | 14 |
 
-Table: **Observed operating burden.** Missing costs are excluded from the means and retained in the last column. Turn and cost summaries have different observed denominators. The 189 decomposed permitted turn counts include the customer-turn-limit record, in addition to 188 normal terminations. Dollar means are rounded to cents; the machine-readable tables preserve precision.
+Table: **Observed operating burden.** Missing costs are excluded from the means and retained in the last column. Turn and cost summaries have different observed denominators. The 189 decomposed permitted turn counts include the customer-turn-limit record, in addition to 188 normal terminations. Dollar means use three decimal places; the machine-readable tables preserve full precision.
 
 | Gate | Outcome | Main bounds (pp) | Main unresolved pairs | 29-pair sensitivity (pp) |
 | :--- | :--- | ---: | ---: | ---: |
@@ -365,11 +368,11 @@ The same checks cover all 231 ungated shadow proposals, including allows and the
 
 Structural format departures occur in 113/181 ungated, 111/163 broad, and 102/166 decomposed reference completions. These overlapping conversation counts are not additional task failures and do not establish the permissibility of the underlying database writes. The eleven completion cases with no post-request reply are a distinct, concrete finding about a required confirmation exchange; no new primary endpoint is substituted for reference completion.
 
-### Independent annotation protocol (prepared; not yet executed)
+### Interpreting unresolved action permission
 
-The annotation packet contains all 65 unresolved live blocks and a reproducibly stratified sample of 30 classified blocks. Two independent annotators receive the full policy, tool schemas and prefix ending at the proposal, with the current gate identity, decision, rationale, actor identity, final outcome and existing audit category withheld. Tool-call identifiers are normalized. The sample consists of blocked writes, so withholding a decision field does not blind annotators to that sampling fact. Prior feedback is preserved because it is part of the available evidence and can reveal earlier intervention; blinding is not absolute.
+A full-policy judgment must distinguish forbidden, permitted, required and uncertain actions using the policy, tool schemas and prefix available at the proposal boundary. A justified block needs an identifiable policy conflict or unmet mandatory prerequisite. An unnecessary block would prevent an action supported as permitted or required with its applicable prerequisites satisfied. Unavailable facts or ambiguous policy scope can leave that distinction unresolved. Current-message format is assessed separately from action eligibility, and a prior format departure alone does not justify blocking a later valid action.
 
-The fixed rubric distinguishes forbidden, permitted, required and uncertain actions, requires a policy-clause citation and separates current-message format from action eligibility. An additional field records whether a public-evidence block is justified. Annotators must not equate absent evidence with prohibited conduct or use eventual task success to justify a decision. They submit labels independently before reconciliation. The agreement script computes the pre-reconciliation confusion matrix, raw agreement and Cohen's kappa separately for action permission and block justification; it rejects blank or incomplete forms. No agreement statistic or unnecessary-block count is reported before labels exist. Sampling strata, inclusion probabilities, packet hashes and the rubric hash are retained in a coordinator file that is not included in reviewer packets. Classified-case checks validate a stratified sample, not all remaining blocks.
+The programmatic evidence cannot settle all such judgments. In particular, selected-predicate eligibility does not establish full-policy permission, and eventual task success is not an answer key for a pre-execution decision. The paper therefore reports neither an independent agreement statistic nor a comprehensive unnecessary-block count. The 65 unresolved live blocks remain explicit rather than being assigned favorable or unfavorable labels.
 
 ## D. Artifact map and offline reproduction
 

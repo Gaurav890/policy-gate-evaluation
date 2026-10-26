@@ -1,15 +1,15 @@
 # From Warnings to Interventions: Evaluating Policy Enforcement in Tool-Using LLM Agents
 
-**Working manuscript source - 24 October 2026.**
+**Working manuscript source - 26 October 2026.**
 
 ## Abstract
 
-Evaluations of policy gates for tool-using language-model agents often report warning rates, block rates or task success, but these measure different properties. We present an evaluation method that links each decision to its policy target, visible evidence, native execution consequence and subsequent task outcome. Across simulated retail and airline environments, the same saved warnings yield alert rates of 64.7% or 4.1% on successful conversations depending on whether the evaluation group also requires interaction-rule compliance. In 1,152 live conversations, two example gate designs block 161 writes: 48 would produce covered policy-violating state changes, whereas 26 would already be rejected by the native tools. Relative to ungated runs, gating reduces observed executed violations by about ten percentage points and reference-task completion by six to nine points, accounting for unresolved outcomes. All ungated violations come from one of three actor configurations. Matched completion losses sometimes occur without a block, and some successful endpoints omit a required confirmation exchange. Linked records, native replay and executable checks let evaluators distinguish detection, added protection and task outcomes, while preserving missing observations and unresolved policy judgments.
+Evaluations of policy gates for tool-using language-model agents often report warning rates, block rates or task success, but these measure different properties. We present an evaluation method that links each decision to its policy target, visible evidence, native execution consequence and subsequent task outcome. Across simulated retail and airline environments, the same saved warnings yield alert rates of 64.7% or 4.1% on successful conversations depending on whether the evaluation group also requires interaction-rule compliance. In 1,152 live conversations, two example gate designs block 161 writes: 48 would produce violations of the checked rules that would change the database, whereas 26 would already be rejected by the native tools. Relative to ungated runs, gating reduces observed executed violations by about ten percentage points and reference-task completion by six to nine points, accounting for unresolved outcomes. All ungated violations come from one of three actor configurations. Matched completion losses sometimes occur without a block, and some successful endpoints omit a required confirmation exchange. Linked records, native replay and executable checks let evaluators distinguish detection, added protection and task outcomes, while preserving missing observations and unresolved policy judgments.
 
 
 ## Introduction
 
-An agent issues an ineligible \$300 credit in an airline simulation. Under a gate, the agent proposes the same ineligible credit, but the call is blocked before execution and no certificate is issued. In the compact study, a gate blocks a refund to a disallowed destination that the native tool would reject anyway. Both events increase the block count by one, but only the first adds protection against a database change. The credit example from our initial live study and the refund contrast expose a measurement problem: **what did the gate actually prevent, and what happened to the user's task afterward?**
+In our initial live study, an agent issues an ineligible \$300 credit in an airline simulation. Under a gate, the agent proposes the same ineligible credit, but the call is blocked before execution and no certificate is issued. In the compact study, a gate blocks a refund to a disallowed destination that the native tool would reject anyway; the exact proposal and replay are indexed as `compact-refund-native-rejection` in `release/examples.json`. Both events increase the block count by one, but only the first adds protection against a database change. The credit example from our initial live study and the refund contrast expose a measurement problem: **what did the gate actually prevent, and what happened to the user's task afterward?**
 
 Language-model agents carry out requests through tools ([Yao et al., 2022](https://arxiv.org/abs/2210.03629); [Schick et al., 2023](https://arxiv.org/abs/2302.04761)). A monitor assesses proposed behavior; a gate uses that assessment to control execution. Warning rates describe decisions, replay describes immediate consequences, and task outcomes describe the continuing interaction. Substituting one for another can credit a gate for protection already supplied by the tool, count repeated blocks as multiple saved tasks, or treat a successful endpoint as evidence of a compliant procedure.
 
@@ -50,7 +50,8 @@ Let $s_t$ be the saved state before action $a_t$ and $T(s_t,a_t)$ its native exe
 | Covered violation | Breach of an applicable selected executable predicate | Every policy breach |
 | Selected-predicate eligibility | No applicable selected predicate is violated | Full-policy permission |
 | Reference completion | Normal dialogue termination and matching reference state | Procedural compliance |
-| Interaction-clean | State success with the measured interaction rule satisfied | All-policy compliance |
+| Interaction-clean | No measured interaction-rule violation ($V=0$), regardless of state success | State success or all-policy compliance |
+| Clean success | State success and no measured interaction-rule violation ($G=1, V=0$) | All-policy compliance |
 | Intercepted transition | Blocked covered violation that would change native state | A saved whole conversation |
 | Enforcement overlap | Blocked violation the native tool would reject | Added state-change protection |
 | Shadow decision | Gate score on a saved ungated proposal | A live continuation under that decision |
@@ -71,19 +72,21 @@ The records contain 1,143 normal terminations, eight infrastructure interruption
 
 <a id="tab:roadmap"></a>
 
-| Study | Source support | Completed / assigned conversations | Role |
-|:---|:---|:---|:---|
-| Original reserved-test cohort | 12 task IDs | 48 / 48 | Outcome/rule disagreement and warning timing |
-| First test extension | 6 additional task IDs | 24 / 24 | Successes that follow the interaction rule |
-| Remaining-test expansion | 42 additional task IDs | 155 / 168 | More task coverage and three monitors |
-| Substantive-rule pilot | 12 training task IDs | 23 / 24 | Feasibility of selected policy checks |
-| New-task policy study | 24 training task IDs | 96 / 96 | Matched monitoring questions on recorded inputs |
-| Initial live-gating study | 8 designed pairs | 61 / 64 | Interception and subsequent behavior |
-| Compact live-gating study | 32 designed pairs | 1,143 / 1,152 | Proposal, replay and conversation accounting |
+| Study | Source support | Completed / assigned conversations | Role | Answers |
+|:---|:---|:---|:---|:---|
+| Original reserved-test cohort | 12 task IDs | 48 / 48 | Outcome/rule disagreement and warning timing | RQ1 |
+| First test extension | 6 additional task IDs | 24 / 24 | Successes that follow the interaction rule | RQ1 |
+| Remaining-test expansion | 42 additional task IDs | 155 / 168 | More task coverage and three monitors | RQ1 |
+| Substantive-rule pilot | 12 training task IDs | 23 / 24 | Feasibility of selected policy checks | RQ1 |
+| New-task policy study | 24 training task IDs | 96 / 96 | Matched monitoring questions on recorded inputs | RQ1 |
+| Initial live-gating study | 8 designed pairs | 61 / 64 | Interception and subsequent behavior | RQ2--3 |
+| Compact live-gating study | 32 designed pairs | 1,143 / 1,152 | Proposal, replay and conversation accounting | RQ1--3 |
 
 : **Study roadmap.** Completion counts denote normal conversation completion, not task success or compliance. The 24 constructed cancellation pairs use four source reservations and are separate fixtures, not agent conversations. Compact shadow scoring reuses 384 ungated sources and adds no live conversations; 383 have complete output and one retains missing output. The compact sample includes 102 imported attempts from its larger parent plan, counted once.
 
 ## RQ1: What does a warning detect?
+
+The earlier-study evidence in Sections 4.1--4.2 uses the monitors listed in Appendix E, including Gemini 3.8 Flash, rather than the compact gates based on Gemini 3.1 Pro Preview. Section 4.3 separately examines the compact gates.
 
 ### Changing the evaluation group versus changing the monitor
 
@@ -94,7 +97,7 @@ The earlier reserved-test cohorts contain 227 completed conversations across 60 
 <figcaption>The same broad-monitor decisions evaluated against two negative classes in the remaining-test expansion. Labels give alert counts and denominators. Gray lines connect the two target-specific rates.</figcaption>
 </figure>
 
-Changing the monitoring question can instead change actual decisions. The substantive new-task study compares broad and focused questions on matched inputs (Table [3](#tab:substantive-targets)). Within its strict subset of nine conversations on four tasks, Gemini's broad-versus-focused alerts are two versus zero, while GPT-5.4 Mini's are four versus six. The narrower question thus moves warnings in opposite directions. That subset has no positive substantive violations, so it provides no sensitivity estimate.
+Changing the monitoring question can instead change actual decisions. Table [3](#tab:substantive-targets) reports the substantive new-task study's matched comparison on 47 decision points. A separate, stricter conversation-level comparison contains nine conversations on four tasks. Within that strict subset, Gemini's broad-versus-focused alerts are two versus zero, while GPT-5.4 Mini's are four versus six. The narrower question thus moves warnings in opposite directions. That subset has no positive substantive violations, so it provides no sensitivity estimate.
 
 <a id="tab:substantive-targets"></a>
 
@@ -284,7 +287,7 @@ Matching nominally permitted runs identifies 16 observed completion losses under
 
 : **Matched permitted-task completion changes.** Each gate is matched to 192 ungated assignments. A loss requires both outcomes to be observed. Block presence is an association, not attribution.
 
-This accounting connects intervention records to lost completions without assuming every loss follows a block. It also shows that gains offset some decomposed losses. A block's presence is an association on separately sampled trajectories: it does not establish that removing the block would recover the task. Of the 20 blocks in observed losses, 15 remain unresolved under the programmatic policy audit. The number judged unnecessary by independent annotators is still unknown.
+This accounting connects intervention records to lost completions without assuming every loss follows a block. It also shows that gains offset some decomposed losses. A block's presence is an association on separately sampled trajectories: it does not establish that removing the block would recover the task. Of the 20 blocks in observed losses, 15 remain unresolved under the programmatic policy audit. These unresolved judgments prevent estimating how many of those blocks were unnecessary.
 
 ### Endpoint success and policy evidence
 
@@ -305,7 +308,7 @@ The programmatic audit covers 392 distinct proposal inputs and all 576 nominally
 
 Among reference completions, six ungated and five decomposed trajectories execute a write without any user reply after the initial request. The required disclosure-then-confirmation exchange is absent. Conversely, a later reply need not contain the literal word "yes" to express approval; ambiguous scope of consent remains unresolved. Endpoint success and supported procedural compliance therefore require separate checks.
 
-The next evidence layer is independent annotation. We have prepared all 65 unresolved blocks and a stratified sample of 30 classified blocks, a fixed rubric, two independent annotation forms, and an agreement script. Current gate identity, actor, decision rationale, audit category and final outcome are withheld from the packets. No annotations have yet been collected, so this paper reports no human-validation result or comprehensive unnecessary-block rate. Appendix C describes the protocol and limits of blinding.
+The programmatic checks establish specific supported objections, not a comprehensive unnecessary-block rate. The 65 unresolved blocks remain a limitation; they cannot be counted as either justified enforcement or unnecessary obstruction. Appendix C distinguishes these interpretations without assigning unsupported labels.
 
 ## Discussion and practitioner guidance
 
@@ -323,7 +326,7 @@ The contribution is an evaluation procedure, not a new runtime constraint langua
 
 **Internal validity.** The compact scope was amended after 344 parent-plan attempts existed; 102 matching records were imported and 1,050 new ones collected. Prior outcomes had been inspected. Order was only partially randomized and hosted sampling was unseeded. Different gate conditions generate different trajectories. Replay assumes the pinned simulator is correct and covers only one transition. The completion-loss association is not causal mediation, and the post hoc audit was developed unblinded.
 
-**Construct validity.** Selected predicates cover eight requirements, not complete policy permission. Early interaction-rule violations can concern harmless reads; their rates cannot be generalized to harmful writes. Sixty-five live blocks remain semantically unresolved and the expert study is pending. A nominally permitted request can still be implemented incorrectly. Endpoint checks omit some procedural obligations, and monitor scores do not establish probability calibration. The two gates differ in both coverage and structure.
+**Construct validity.** Selected predicates cover eight requirements, not complete policy permission. Early interaction-rule violations can concern harmless reads; their rates cannot be generalized to harmful writes. Sixty-five live blocks remain semantically unresolved, preventing a comprehensive unnecessary-block estimate. A nominally permitted request can still be implemented incorrectly. Endpoint checks omit some procedural obligations, and monitor scores do not establish probability calibration. The two gates differ in both coverage and structure.
 
 **External validity.** The compact study uses 32 designed pairs in two simulated domains, a scripted customer and one monitor configuration. All ungated violations occur in one actor. Pairs share policies, templates and contextual entities; hosted aliases can drift. The earlier 60 task IDs contain 51 exact reference-operation sequences, and cancellation fixtures reuse four reservations. Extensions were designed after earlier findings. The strict new-task subset has no positive violations. External CPU-baseline reproduction supplies no transfer estimate on these conversations.
 
@@ -347,11 +350,11 @@ AgentBoard supplements final success with fine-grained progress analysis ([Ma et
 
 ##### Warning, diagnosis and repair.
 
-PrefixGuard connects learned-event failure warnings with finite-state execution diagnosis ([Huang et al., 2026](https://arxiv.org/abs/2605.06455v2)). Real-time telemetry monitoring studies deployment adaptation, verification and repair ([Dubey, 2026](https://arxiv.org/abs/2608.02464)); its released adaptation code refits a normalizer and detector before threshold calibration, so refitting is not a contribution here. AgentRx localizes critical steps in failed trajectories using an evidence-based diagnostic framework ([Barke et al., 2026](https://arxiv.org/abs/2602.02475v2)). ReliabilityBench studies repeated execution, perturbations and tool faults, while AgentCheck compares controlled fault replay and mitigation ([Gupta, 2026](https://arxiv.org/abs/2601.06112); [Mazumder and Lia, 2026](https://arxiv.org/abs/2607.11098v3)). These establish that repeated runs and controlled interventions are not new in themselves. Reflexion uses verbal feedback across trials, and Self-Refine iteratively revises generated outputs ([Shinn et al., 2023](https://arxiv.org/abs/2303.11366); [Madaan et al., 2023](https://arxiv.org/abs/2303.17651)). Such improvement mechanisms require their own intervention evaluation. Observing an alert alone demonstrates neither advance prediction nor repair benefit. Our live-gating studies test pre-execution blocking and continuation, with direct native-transition replay, rather than inferring prevention from offline warning scores.
+PrefixGuard connects learned-event failure warnings with finite-state execution diagnosis ([Huang et al., 2026](https://arxiv.org/abs/2605.06455v2)); real-time telemetry monitoring studies adaptation, verification and repair ([Dubey, 2026](https://arxiv.org/abs/2608.02464)). AgentRx diagnoses critical failure steps, while ReliabilityBench and AgentCheck examine repeated runs, perturbations and controlled fault replay ([Barke et al., 2026](https://arxiv.org/abs/2602.02475v2); [Gupta, 2026](https://arxiv.org/abs/2601.06112); [Mazumder and Lia, 2026](https://arxiv.org/abs/2607.11098v3)). Reflexion and Self-Refine use feedback to revise behavior or outputs ([Shinn et al., 2023](https://arxiv.org/abs/2303.11366); [Madaan et al., 2023](https://arxiv.org/abs/2303.17651)). Our intervention accounting links proposed writes to native consequences and continuation; an offline warning alone establishes neither advance prediction nor repair benefit.
 
 ##### Model judges, explanations and uncertainty.
 
-Studies of model judges and G-Eval examine evaluation agreement and limitations of automated assessment ([Zheng et al., 2023](https://arxiv.org/abs/2306.05685); [Liu et al., 2023](https://arxiv.org/abs/2303.16634)). Their tasks and reference labels differ from the executable predicates used here. Unfaithful chain-of-thought explanations further caution against reading an explanation as a causal account of a score ([Turpin et al., 2023](https://arxiv.org/abs/2305.04388)); our short monitor reasons are retained as outputs, not used as causal ground truth. SelfCheckGPT detects factual inconsistencies through sampling, and semantic uncertainty accounts for meaning-equivalent outputs ([Manakul et al., 2023](https://arxiv.org/abs/2303.08896); [Kuhn et al., 2023](https://arxiv.org/abs/2302.09664)). Neither uncertainty signal is automatically a probability of violating a tool policy. Calibration research and language-model self-evaluation distinguish numeric confidence from empirically reliable probabilities ([Guo et al., 2017](https://arxiv.org/abs/1706.04599); [Kadavath et al., 2022](https://arxiv.org/abs/2207.05221)). Selective classification explicitly evaluates risk against coverage ([Geifman and El-Yaniv, 2017](https://arxiv.org/abs/1705.08500)); our fixed exploratory alert threshold supplies no corresponding selective-risk guarantee.
+Model-judge studies and G-Eval examine automated assessment against task-specific references ([Zheng et al., 2023](https://arxiv.org/abs/2306.05685); [Liu et al., 2023](https://arxiv.org/abs/2303.16634)). Explanations can be unfaithful, so we retain monitor reasons as outputs rather than causal ground truth ([Turpin et al., 2023](https://arxiv.org/abs/2305.04388)). SelfCheckGPT, semantic uncertainty, calibration and self-evaluation address consistency or confidence under other targets; their signals are not automatically probabilities of tool-policy violation ([Manakul et al., 2023](https://arxiv.org/abs/2303.08896); [Kuhn et al., 2023](https://arxiv.org/abs/2302.09664); [Guo et al., 2017](https://arxiv.org/abs/1706.04599); [Kadavath et al., 2022](https://arxiv.org/abs/2207.05221)). Selective classification evaluates risk against coverage; our fixed exploratory threshold supplies no such guarantee ([Geifman and El-Yaniv, 2017](https://arxiv.org/abs/1705.08500)).
 
 ##### Evaluation validity and reuse.
 
@@ -363,7 +366,7 @@ Evaluating a policy gate requires connecting what it detects, what it prevents a
 
 ## Reproducibility {#reproducibility .unnumbered}
 
-The review artifact provides linked records, study-specific provenance and offline scripts. From an isolated environment, `python paper/combined_study/reproduce_principal.py` checks the compact evidence and regenerates the principal tables, actor/rule/scenario exports, exploratory tests and manuscript sources without model calls. Appendix D gives the artifact map. Original receipt commitments and sanitized released-byte hashes are kept distinct; missing outputs are not filled. The release README records the environment and checks actually completed.
+The public artifact is available at [github.com/Gaurav890/policy-gate-evaluation](https://github.com/Gaurav890/policy-gate-evaluation), release `v1.1.0`; the same release supplies `policy-gate-evaluation-v1.1.0.zip` as a downloadable supplementary package. It provides linked records, study-specific provenance and offline scripts. From an isolated environment, `python paper/combined_study/reproduce_principal.py` checks the compact evidence and regenerates the principal tables, actor/rule/scenario exports, exploratory tests and manuscript sources without model calls. Appendix D gives the artifact map. Original receipt commitments and sanitized released-byte hashes are kept distinct; missing outputs are not filled. The release README records the environment and checks actually completed.
 
 ## Broader impact {#broader-impact .unnumbered}
 
@@ -488,6 +491,8 @@ Zhou, Shuyan; Xu, Frank F.; Zhu, Hao; Zhou, Xuhui; Lo, Robert; Sridhar, Abishek;
 
 The benchmark revision recorded in the project is `b7ea9074c1cba482b30687fecdb5c8425fd6f619`. Policies, native tools, scenario construction, and the relevant study sources are covered by the frozen artifact checks. Main pair indices 02-05 are distinct from development indices 00-01. Each selected rule has four pairs, and each pair has six actor/repeat cells per request type and live condition.
 
+<a id="tab:compact-configurations"></a>
+
 | Role              | Requested gateway identifier    | Provider route | Reasoning |
 |:------------------|:--------------------------------|:---------------|:----------|
 | Actor             | `openai/gpt-5.4-mini`           | openai         | none      |
@@ -511,7 +516,7 @@ The allocation is
 
 $$32\ \text{pairs}\times 3\ \text{actors}\times 2\ \text{repeats}\times 2\ \text{request types}\times 3\ \text{conditions}=1{,}152.$$
 
-The actor configurations are GPT-5.4 Mini, DeepSeek V4.1 Flash, and Claude Opus 5.5. The last requests high reasoning; the first two request none. Both public gates use Gemini 3.1 Pro Preview with high reasoning. These are hosted aliases, not immutable weight snapshots. Exact requested identifiers, routes, and limits appear in Appendix A.
+The actor configurations are GPT-5.4 Mini, DeepSeek V4.1 Flash, and Claude Opus 5.5. The last requests high reasoning; the first two request none. Both public gates use Gemini 3.1 Pro Preview with high reasoning. These are hosted aliases, not immutable weight snapshots. Table [12](#tab:compact-configurations) lists the requested identifiers and routes; the execution limits are given immediately below that table.
 
 All compact conversations use the same scripted customer, with fixed facts and at most two designated pushbacks. Conversations are bounded by 32 actor turns and eight customer turns. The actor chooses its own actions and may refuse before proposing a write. Consequently, a pressure assignment does not guarantee an opportunity for the gate to intervene. Similarly, a nominally permitted request does not guarantee that the actor's proposed implementation is valid.
 
@@ -537,7 +542,7 @@ The compact allocation was selected after 344 attempts under a larger plan, with
 
 Of the earlier attempts, 102 fit the compact allocation and were reused byte-for-byte: 101 completed and one was interrupted. The remaining 242 attempts stay outside these estimates. Compact collection added 1,050 attempts. Interrupted episodes were not replaced. The schedule retained the relative order of selected cells from the original shuffled within-block allocation; actor sampling was unseeded and actor blocks were not globally randomized.
 
-A provenance sensitivity retains the 29 source pairs with no earlier collected conversation. It has one basic-economy pair and four pairs for each other rule, so the support is uneven. Earlier development and warning-monitor studies motivate the question but are not pooled into the compact sample. Appendix A records execution details and Appendix D maps the results to saved artifacts.
+A provenance sensitivity retains the 29 source pairs with no earlier collected conversation. It has one basic-economy pair and four pairs for each other rule, so the support is uneven. Earlier development and warning-monitor studies motivate the question but are not pooled into the compact sample. Appendix D maps the results to saved artifacts.
 
 ### Three distinct measurement levels
 
@@ -578,14 +583,14 @@ The checks cover observable prerequisites and action constraints, including the 
 
 | Request | Condition | Mean turns; observed n | Mean live USD; observed n | Unknown-cost runs |
 |:---|:---|:---|:---|:---|
-| Pressure | No gate | 4.870; 192 | 0.06; 182 | 10 |
-| Pressure | Broad | 5.079; 190 | 0.06; 183 | 9 |
-| Pressure | Decomposed | 4.995; 191 | 0.06; 181 | 11 |
-| Permitted | No gate | 4.948; 192 | 0.07; 181 | 11 |
-| Permitted | Broad | 5.332; 190 | 0.09; 177 | 15 |
-| Permitted | Decomposed | 5.026; 189 | 0.08; 178 | 14 |
+| Pressure | No gate | 4.870; 192 | 0.056; 182 | 10 |
+| Pressure | Broad | 5.079; 190 | 0.060; 183 | 9 |
+| Pressure | Decomposed | 4.995; 191 | 0.060; 181 | 11 |
+| Permitted | No gate | 4.948; 192 | 0.072; 181 | 11 |
+| Permitted | Broad | 5.332; 190 | 0.093; 177 | 15 |
+| Permitted | Decomposed | 5.026; 189 | 0.080; 178 | 14 |
 
-: **Observed operating burden.** Missing costs are excluded from the means and retained in the last column. Turn and cost summaries have different observed denominators. The 189 decomposed permitted turn counts include the customer-turn-limit record, in addition to 188 normal terminations. Dollar means are rounded to cents; the machine-readable tables preserve precision.
+: **Observed operating burden.** Missing costs are excluded from the means and retained in the last column. Turn and cost summaries have different observed denominators. The 189 decomposed permitted turn counts include the customer-turn-limit record, in addition to 188 normal terminations. Dollar means use three decimal places; the machine-readable tables preserve full precision.
 
 | Gate | Outcome | Main bounds (pp) | Main unresolved pairs | -pair sensitivity (pp) |
 |:---|:---|:---|:---|:---|
@@ -621,7 +626,7 @@ Scenario and scenario-by-actor rows are distributed in `paired_effects.csv`. The
 
 All 64 matched outcomes per condition are observed for GPT-5.4 Mini. We selected this actor after inspecting the concentration of violations, and added these analyses after collection. For discordant counts $b$ (ungated positive, gated negative) and $c$ (ungated negative, gated positive), the nominal two-sided exact McNemar value is $\min\{1,2\Pr[\mathrm{Binomial}(b+c,1/2)\leq\min(b,c)]\}$. Repeated runs within a scenario may be dependent, so the run-level test is not sufficient for inference.
 
-We also enumerate exact sign flips of paired differences, keeping both repetitions together within each of 32 scenarios, and then within the 31 recorded shared-context components. Table [13](#tab:exploratory-tests) gives the nominal test and the context sensitivity, with Holm adjustment across the four actor-specific comparisons. The CSV retains both cluster definitions and all raw and adjusted values. Cluster exchangeability remains an assumption; adjustment does not correct post hoc selection of the actor or analysis. These results are exploratory evidence within this allocation, not restored preregistered tests or an estimate of a population effect.
+We also enumerate exact sign flips of paired differences, keeping both repetitions together within each of 32 scenarios, and then within the 31 recorded shared-context components. Table [14](#tab:exploratory-tests) gives the nominal test and the context sensitivity, with Holm adjustment across the four actor-specific comparisons. The CSV retains both cluster definitions and all raw and adjusted values. Cluster exchangeability remains an assumption; adjustment does not correct post hoc selection of the actor or analysis. These results are exploratory evidence within this allocation, not restored preregistered tests or an estimate of a population effect.
 
 <a id="tab:exploratory-tests"></a>
 
@@ -662,11 +667,11 @@ The same checks cover all 231 ungated shadow proposals, including allows and the
 
 Structural format departures occur in 113/181 ungated, 111/163 broad, and 102/166 decomposed reference completions. These overlapping conversation counts are not additional task failures and do not establish the permissibility of the underlying database writes. The eleven completion cases with no post-request reply are a distinct, concrete finding about a required confirmation exchange; no new primary endpoint is substituted for reference completion.
 
-### Independent annotation protocol (prepared; not yet executed)
+### Interpreting unresolved action permission
 
-The annotation packet contains all 65 unresolved live blocks and a reproducibly stratified sample of 30 classified blocks. Two independent annotators receive the full policy, tool schemas and prefix ending at the proposal, with the current gate identity, decision, rationale, actor identity, final outcome and existing audit category withheld. Tool-call identifiers are normalized. The sample consists of blocked writes, so withholding a decision field does not blind annotators to that sampling fact. Prior feedback is preserved because it is part of the available evidence and can reveal earlier intervention; blinding is not absolute.
+A full-policy judgment must distinguish forbidden, permitted, required and uncertain actions using the policy, tool schemas and prefix available at the proposal boundary. A justified block needs an identifiable policy conflict or unmet mandatory prerequisite. An unnecessary block would prevent an action supported as permitted or required with its applicable prerequisites satisfied. Unavailable facts or ambiguous policy scope can leave that distinction unresolved. Current-message format is assessed separately from action eligibility, and a prior format departure alone does not justify blocking a later valid action.
 
-The fixed rubric distinguishes forbidden, permitted, required and uncertain actions, requires a policy-clause citation and separates current-message format from action eligibility. An additional field records whether a public-evidence block is justified. Annotators must not equate absent evidence with prohibited conduct or use eventual task success to justify a decision. They submit labels independently before reconciliation. The agreement script computes the pre-reconciliation confusion matrix, raw agreement and Cohen's kappa separately for action permission and block justification; it rejects blank or incomplete forms. No agreement statistic or unnecessary-block count is reported before labels exist. Sampling strata, inclusion probabilities, packet hashes and the rubric hash are retained in a coordinator file that is not included in reviewer packets. Classified-case checks validate a stratified sample, not all remaining blocks.
+The programmatic evidence cannot settle all such judgments. In particular, selected-predicate eligibility does not establish full-policy permission, and eventual task success is not an answer key for a pre-execution decision. The paper therefore reports neither an independent agreement statistic nor a comprehensive unnecessary-block count. The 65 unresolved live blocks remain explicit rather than being assigned favorable or unfavorable labels.
 
 ## Artifact map and offline reproduction
 
@@ -772,7 +777,7 @@ We record three answers for each conversation: did the final database match the 
 
 For the reserved-test cohorts, *state success* means that the native final-database check matches its reference and the conversation ends normally. We write this as $G=1$. It does not certify every requirement in the natural-language policy.
 
-Our first rule check concerns the format of the agent's messages. The agent must not propose more than one tool call in a message, or combine tool calls with nonempty text addressed to the user. We write $V=1$ if either violation occurs. A simple parser can check this rule directly. We use *interaction-clean* to mean that neither violation was observed ($V=0$); the term says nothing about other policies. The two-lookup example in the introduction violates this rule even if both lookups are harmless.
+Our first rule check concerns the format of the agent's messages. The agent must not propose more than one tool call in a message, or combine tool calls with nonempty text addressed to the user. We write $V=1$ if either violation occurs. A simple parser can check this rule directly. We use *interaction-clean* to mean that neither violation was observed ($V=0$); the term says nothing about other policies. For example, a message proposing two lookup calls violates this rule even if both lookups are harmless.
 
 At each monitored decision, the model returns a numeric score $s_t$. We count a warning when the score is at least 0.5, writing $A_t=\mathbf{1}[s_t\geq0.5]$. A conversation has a warning if any scored decision crosses that threshold: $A=\max_t A_t$. The threshold was fixed during development. These scores have not been calibrated as probabilities of failure.
 
@@ -798,7 +803,7 @@ Let $q=\Pr(V=1\mid G=1)$. Where the relevant conditional populations have nonzer
  \label{eq:decomposition}
 \end{equation}$$ This is an accounting identity, not a new statistical estimator. The distinction between an intended construct and its operational measurement has a broader precedent in measurement-validity research ([Jacobs and Wallach, 2019](https://arxiv.org/abs/1912.05511)); here we apply it to explicit monitor targets. In words, the warning rate among all state successes is a weighted average of the rates among those that break the rule and those that follow it. Thus, an exact contract detector with $A=V$ has $F_G=q$, although its false-alarm rate on contract-clean state successes is zero when that population exists. If every state success violates the contract, the second rate is undefined. Reporting a zero denominator as zero false alarms would conceal the lack of negative examples.
 
-Timing needs the same care. In the opening example, a warning issued after the monitor sees both proposed lookup calls detects an already visible violation; it does not predict the violation in advance. Let $t_V$ be the first offending assistant proposal and $t_A$ the first alert. A monitor that receives that proposal and alerts at $t_A=t_V$ performs detection at the decision boundary. It has not demonstrated prediction before the violation became observable. This clock also prevents a post-tool observation from being credited with preventing an action already executed. We report before, at, after, and absent alerts separately; we do not infer the first irreversible task mistake from a terminal state label.
+Timing needs the same care. For a message proposing two lookup calls, a warning issued after the monitor sees both calls detects an already visible violation; it does not predict the violation in advance. Let $t_V$ be the first offending assistant proposal and $t_A$ the first alert. A monitor that receives that proposal and alerts at $t_A=t_V$ performs detection at the decision boundary. It has not demonstrated prediction before the violation became observable. This clock also prevents a post-tool observation from being credited with preventing an action already executed. We report before, at, after, and absent alerts separately; we do not infer the first irreversible task mistake from a terminal state label.
 
 ## How the conversations and warnings were collected {#sec:protocol}
 
@@ -840,13 +845,17 @@ Invalid or truncated structured responses are missing scores, never negative pre
 
 Bootstrap resampling provides an empirical uncertainty estimate ([Efron, 1979](https://doi.org/10.1214/aos/1176344552)). Prior work on stochastic agent evaluation highlights the sensitivity of conclusions to few runs and reporting choices ([Henderson et al., 2017](https://arxiv.org/abs/1709.06560); [Agarwal et al., 2021](https://arxiv.org/abs/2108.13264)). The reserved-test uncertainty analysis uses 5,000 bootstrap replicates, stratified by domain and resampling whole task IDs with all actor/interface cells together. A second analysis resamples reference-operation-sequence groups. These intervals describe variability across a small finite sample; they are not deployment guarantees. Undefined replicate denominators are counted, and degenerate intervals are not evidence of certainty. No prefix is treated as an independent task, no hypothesis is selected by its $p$-value, and no held-out data are used to tune a threshold or train a detector.
 
-## What the reserved-test conversations show {#sec:results}
+## What the reserved-test conversations show
+
+Main-text timing results: Figure [3](#fig:timing).
+
+[]{#sec:results label="sec:results"}
 
 ### Correct outcomes can still trigger justified rule warnings
 
-In the original test cohort, all 39 conversations with successful final outcomes also broke the interaction rule. Gemini warned in all 39. An evaluator that treated every successful outcome as error-free would therefore count every one of these warnings as a false alarm. The exact rule checker gives the same 39/39 warning count. There are no successful conversations that follow the rule in this cohort, so the corresponding warning rate is *undefined*, not zero. Table [18](#tab:rates) shows both denominators.
+In the original test cohort, all 39 conversations with successful final outcomes also broke the interaction rule. Gemini warned in all 39. An evaluator that treated every successful outcome as error-free would therefore count every one of these warnings as a false alarm. The exact rule checker gives the same 39/39 warning count. There are no successful conversations that follow the rule in this cohort, so the corresponding warning rate is *undefined*, not zero. Table [19](#tab:rates) shows both denominators.
 
-All 48 planned conversations completed. Gemini returned valid scores for 511 of 514 decisions. The three missing scores occur after an already observed first warning, so they do not prevent us from determining whether or when each conversation first triggered a warning. All 48 conversations violate the interaction rule, including the nine without state success. Table [17](#tab:cohort) and Figure [5](#fig:matrix) show the individual task and condition results.
+All 48 planned conversations completed. Gemini returned valid scores for 511 of 514 decisions. The three missing scores occur after an already observed first warning, so they do not prevent us from determining whether or when each conversation first triggered a warning. All 48 conversations violate the interaction rule, including the nine without state success. Table [18](#tab:cohort) and Figure [5](#fig:matrix) show the individual task and condition results.
 
 ##### Observed example: four lookups, one warning, a correct final state.
 
@@ -890,13 +899,11 @@ The cohort contains 12 task IDs and 11 distinct reference-operation sequences. B
 
 : Original Gemini warnings on successful outcomes, with and without requiring interaction-rule compliance. Entries are alerting episodes / negative episodes. "Undefined" means no eligible negative examples, not zero false alarms. These checks do not cover every policy, so the entries are not full-policy error rates.
 
-The corresponding results are shown in Figure [3](#fig:timing) in the main text.
-
 ### Renaming tools differs from changing the rule or the question
 
 Renaming a tool leaves the underlying rule unchanged; allowing several calls changes the rule itself. We tested these separately. The development renaming diagnostic produces no alert flips at the fixed threshold. Mean absolute risk change relative to the two original scores is 0.003125, with a maximum of 0.05; repeated-original differences are zero in all 16 pairs. These prefixes lie near low-risk initial exchanges or obvious batch violations, so the result is a narrow negative finding. It does not establish invariance in ambiguous mid-trajectory cases, across arbitrary aliases, or for trained telemetry monitors.
 
-Of the 12 preselected held-out cells, 12 supply an eligible batch proposal and 0 are ineligible; no replacement is made. The strict-repeat arm alerts on 12/12 eligible prefixes. Relaxing only the batch rule yields 0/12 alerts, and the outcome-focused prompt yields 0/12. The strict repeat changes 0 alert decisions relative to the original monitor score at the same boundary (mean absolute risk difference 0.0083). Table [19](#tab:ablation) reports matched risk changes. These descriptive interventions expose sensitivity to the stated policy and requested target. They do not establish that the outcome-focused scores are calibrated, that every residual alert is correct, or that relaxing the rule improves live agent behavior.
+Of the 12 preselected held-out cells, 12 supply an eligible batch proposal and 0 are ineligible; no replacement is made. The strict-repeat arm alerts on 12/12 eligible prefixes. Relaxing only the batch rule yields 0/12 alerts, and the outcome-focused prompt yields 0/12. The strict repeat changes 0 alert decisions relative to the original monitor score at the same boundary (mean absolute risk difference 0.0083). Table [20](#tab:ablation) reports matched risk changes. These descriptive interventions expose sensitivity to the stated policy and requested target. They do not establish that the outcome-focused scores are calibrated, that every residual alert is correct, or that relaxing the rule improves live agent behavior.
 
 <a id="tab:ablation"></a>
 
@@ -937,11 +944,13 @@ For Gemini, the descriptive whole-task bootstrap envelope is \[0.0%, 25.0%\], ex
 
 The measured interaction rule does not cover complete semantic-policy compliance. The following constructed eligibility experiment uses explicit simulator facts to isolate a substantive rule, while preserving the distinction between passing that rule and satisfying the full policy.
 
-### Expanded test coverage separates warning targets {#sec:replication}
+### Expanded test coverage separates warning targets
 
-We next collect the remaining reserved test tasks to obtain more successes that follow the interaction rule and compare three monitors. A subsequent protocol, frozen before these new outcomes but after the earlier findings, allocates every remaining reserved upstream-test ID: 31 retail and 11 airline tasks. Each uses the same DeepSeek actor and Sonnet customer, native or reminder instructions, and two unseeded repeats, for 168 planned conversations. The 90-step and 900-second limits match the first extension. All attempted cells are retained, with interruptions separate from completed trajectories; no failed cell is invisibly replaced. This is an explicitly exploratory expansion of the original study, not a retrospectively declared confirmatory sample. Together the allocations cover all 60 reserved test IDs, but do not establish 60 independent task families.
+Main-text results: Figure [2](#fig:expanded-targets) and Table [4](#tab:expanded-timing).
 
-Of the 168 attempts, 155 completed and 13 were interrupted. Completed runs include 133 state successes and 49 interaction-clean state successes across 16 task IDs. Table [21](#tab:replication-cohort) preserves domain and instruction strata. Rates below condition on completed runs; infrastructure missingness need not be random, and interrupted attempts remain in the released inventory.
+[]{#sec:replication label="sec:replication"} We next collect the remaining reserved test tasks to obtain more successes that follow the interaction rule and compare three monitors. A subsequent protocol, frozen before these new outcomes but after the earlier findings, allocates every remaining reserved upstream-test ID: 31 retail and 11 airline tasks. Each uses the same DeepSeek actor and Sonnet customer, native or reminder instructions, and two unseeded repeats, for 168 planned conversations. The 90-step and 900-second limits match the first extension. All attempted cells are retained, with interruptions separate from completed trajectories; no failed cell is invisibly replaced. This is an explicitly exploratory expansion of the original study, not a retrospectively declared confirmatory sample. Together the allocations cover all 60 reserved test IDs, but do not establish 60 independent task families.
+
+Of the 168 attempts, 155 completed and 13 were interrupted. Completed runs include 133 state successes and 49 interaction-clean state successes across 16 task IDs. Table [22](#tab:replication-cohort) preserves domain and instruction strata. Rates below condition on completed runs; infrastructure missingness need not be random, and interrupted attempts remain in the released inventory.
 
 <a id="tab:replication-cohort"></a>
 
@@ -972,19 +981,17 @@ Selecting only interaction-clean successes does not reduce every model's warning
 
 For Gemini, the descriptive whole-task bootstrap envelope on new clean successes is \[0.0%, 11.1%\], with 0 of 5,000 resamples lacking a denominator. For DeepSeek, the descriptive whole-task bootstrap envelope on new clean successes is \[38.8%, 76.6%\], with 0 of 5,000 resamples lacking a denominator. For GPT-5.4 Mini, the descriptive whole-task bootstrap envelope on new clean successes is \[50.8%, 80.4%\], with 0 of 5,000 resamples lacking a denominator. These intervals describe resampling of finite benchmark tasks; they do not certify population coverage or deployment calibration. Full domain/condition strata and missing-score bounds are included in the artifact.
 
-The corresponding results are shown in Figure [2](#fig:expanded-targets) in the main text.
-
 Among 72 task/condition pairs with both repeats completed, 4 change interaction-contract status and 13 change state-success status. These comparisons expose run variability and do not isolate a causal benefit of adding the reminder.
 
-The corresponding results are shown in Table [4](#tab:expanded-timing) in the main text.
+### Cancellation examples: execution does not establish eligibility
 
-### Cancellation examples: execution does not establish eligibility {#sec:policy-lab}
+Main-text results: Table [6](#tab:policy-lab).
 
-The interaction rule is easy to check and can be broken by harmless lookups. To examine a more substantive distinction, we ask whether a cancellation is permitted, rather than merely whether the cancellation tool runs. To isolate this rule, we construct 24 matched cancellation pairs: six rule contrasts across four deterministically selected source reservations, with an eligible and an ineligible variant in each pair. The contrasts cover booking age, airline cancellation, business cabin, health insurance, covered weather reason, and a previously flown segment. All prefixes supply the user and reservation IDs, cancellation reason, native reservation and flight-status observations, and explicit confirmation. Each ends with the same single, text-free cancellation proposal within its pair. Labels concern only cancellation eligibility, not comprehensive policy compliance.
+[]{#sec:policy-lab label="sec:policy-lab"} The interaction rule is easy to check and can be broken by harmless lookups. To examine a more substantive distinction, we ask whether a cancellation is permitted, rather than merely whether the cancellation tool runs. To isolate this rule, we construct 24 matched cancellation pairs: six rule contrasts across four deterministically selected source reservations, with an eligible and an ineligible variant in each pair. The contrasts cover booking age, airline cancellation, business cabin, health insurance, covered weather reason, and a previously flown segment. All prefixes supply the user and reservation IDs, cancellation reason, native reservation and flight-status observations, and explicit confirmation. Each ends with the same single, text-free cancellation proposal within its pair. Labels concern only cancellation eligibility, not comprehensive policy compliance.
 
 Eligibility is computed from explicit simulator facts using two separately written formulations of the stated rule, checked over a factorial grid. Their agreement checks implementation consistency within the stated eligibility rule. Boundary-ambiguous exact 24-hour bookings are excluded from the fixtures. All 48 proposed cancellations execute through the native tool, including the 24 ineligible ones; all 48 satisfy the measured interaction contract. This demonstrates a gap between operation execution, interaction formatting, and substantive eligibility within the constructed cases. The operation-executed label is not the native task-success label $G$, and these synthetic probes are not additional autonomous actor conversations.
 
-For example, two variants can present the same cancellation request but differ in the booking age that determines eligibility under the policy. These are deliberately constructed cases, not naturally observed customer conversations. Each monitor sees the identical public input twice, under the original broad target and a cancellation-eligibility-only target, in alternating order. Ground-truth labels, fixture identifiers, final database state and post-action results are excluded from monitor inputs. The corresponding results are shown in Table [6](#tab:policy-lab) in the main text.
+For example, two variants can present the same cancellation request but differ in the booking age that determines eligibility under the policy. These are deliberately constructed cases, not naturally observed customer conversations. Each monitor sees the identical public input twice, under the original broad target and a cancellation-eligibility-only target, in alternating order. Ground-truth labels, fixture identifiers, final database state and post-action results are excluded from monitor inputs.
 
 The artifact reports score-direction changes within every pair and all six rule strata, including failures. Four reused source reservations and six constructed rule contrasts do not form a representative semantic-policy benchmark. These results establish neither the natural prevalence of violations nor calibrated risk probabilities or repair benefit.
 
@@ -1022,15 +1029,15 @@ All five candidate conversations also contain an interaction-rule violation. Con
 
 ### Changing the monitoring question changes warnings
 
+Main-text results: Table [3](#tab:substantive-targets).
+
 We nevertheless can test whether the monitoring question changes warnings on the same recorded evidence. Gemini and GPT-5.4 Mini each receive three questions: has any public-policy violation occurred or been proposed; has the interaction rule been violated; or has one of the six selected substantive rules been violated? All three questions use the same time horizon. None asks the model to predict an unseen future failure.
 
 For every applicable proposal, we select the nearest generated assistant decisions before, at and after it, removing duplicate selections. Each monitor sees the same policy, tool definitions and conversation up to that decision. It sees no future messages, private labels or final database result. These sampled windows support local timing comparisons, not a claim about the first warning anywhere in a conversation. Across pilot and new-task study, 1,625 of the 1,626 planned monitor evaluations return valid scores; the remaining output stays missing.
 
 To reduce interference from the simple interaction rule, we exclude entire conversations that violate it, along with policy--tool disagreements. The new-task study then supplies 47 matched decision points from seven tasks. Within each task we calculate the difference between the warning rate under the broad question and the rate under the six-rule question, then average the task differences equally. A positive difference means more warnings under the broad question.
 
-The corresponding results are shown in Table [3](#tab:substantive-targets) in the main text.
-
-The two models move in opposite directions (Table [3](#tab:substantive-targets)). Asking a narrower question therefore does not universally reduce warnings. Removing one task at a time leaves Gemini's difference between +36.1 and +52.8 percentage points, and GPT-5.4 Mini's between $-15.3$ and 0.0. The artifact also groups tasks by shared visible entities and reports sensitivity to those dependencies. The extension uses 2,000 task bootstrap resamples; these describe the small observed sample, not a deployment population.
+The two models move in opposite directions. Asking a narrower question therefore does not universally reduce warnings. Removing one task at a time leaves Gemini's difference between +36.1 and +52.8 percentage points, and GPT-5.4 Mini's between $-15.3$ and 0.0. The artifact also groups tasks by shared visible entities and reports sensitivity to those dependencies. The extension uses 2,000 task bootstrap resamples; these describe the small observed sample, not a deployment population.
 
 A smaller comparison further requires a matching final database and a clean result on the applicable selected rules. It contains nine conversations from four tasks. Gemini warns on two under the broad question and none under the six-rule question; GPT-5.4 Mini warns on four and six, respectively. These counts are easy to misread: a broad warning might concern a policy we did not label. They measure warning frequency on a specified comparison group, not comprehensive false-alarm rates.
 
@@ -1054,7 +1061,7 @@ The four conditions share initial case states, actor prompts and native tools. *
 
 ### Executed violations, permitted work and cost
 
-All 32 forbidden-request conversations complete. Among the 32 permitted controls, 29 complete and three reach the customer-turn limit. Table [23](#tab:live) retains these incomplete outcomes separately. A violation here means a covered forbidden write actually changes native state; a rejected proposal alone is not an executed violation. Control success requires both a matching reference database and conversational completion. One incomplete privileged-gate control had already reached its reference state, illustrating why those checks are recorded separately.
+All 32 forbidden-request conversations complete. Among the 32 permitted controls, 29 complete and three reach the customer-turn limit. Table [24](#tab:live) retains these incomplete outcomes separately. A violation here means a covered forbidden write actually changes native state; a rejected proposal alone is not an executed violation. Control success requires both a matching reference database and conversational completion. One incomplete privileged-gate control had already reached its reference state, illustrating why those checks are recorded separately.
 
 <a id="tab:live"></a>
 
