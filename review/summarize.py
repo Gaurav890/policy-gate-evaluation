@@ -1,4 +1,4 @@
-"""Validate two independent form exports and report agreement before reconciliation.
+"""Validate two form exports and report agreement before reconciliation.
 
 Run privately: python review/summarize.py R1-submission.json R2-submission.json
 Optional --coordinator-key path unlocks prespecified subgroup counts; never publish responses.
@@ -17,9 +17,12 @@ def csv_text(rows):
 def load(path):
     d=json.loads(Path(path).read_text()); manifest=json.loads((R/'review/packet_manifest.json').read_text())
     assert d['packet_sha256']==manifest['packet_sha256'],'Wrong packet'
-    assert d['independent'] is True and d['attest'] is True,'Independent declarations missing'
-    assert isinstance(d['reviewer'],str) and d['reviewer'].strip() and isinstance(d['experience'],str) and d['experience'].strip(),'Reviewer profile missing'
-    assert d['relationship'] in ['external','coauthor_not_designer','designer'],'Relationship missing'
+    assert d.get('schema_version',1) in [1,2],'Unknown export version'
+    assert isinstance(d['reviewer'],str) and d['reviewer'].strip(),'Reviewer code missing'
+    if d.get('schema_version',1)==1:
+        assert d.get('independent') is True and d.get('attest') is True,'Legacy independent declarations missing'
+        assert isinstance(d.get('experience'),str) and d['experience'].strip(),'Legacy experience missing'
+        assert d.get('relationship') in ['external','coauthor_not_designer','designer'],'Legacy relationship missing'
     rows=d['rows']; assert d['case_count']==99 and len(rows)==99,'Expected all 99 cases'
     assert {r['case_id'] for r in rows}=={f'CASE{i:03}' for i in range(1,100)},'Case mismatch'
     for r in rows:
@@ -47,5 +50,5 @@ def main():
         if not groups['unresolved_65']: groups['unresolved_65']=[r['case_id'] for r in key if 'unresolved' in r.get('audit_category','')]
         groups['completion_loss_blocks_20']=[r['case_id'] for r in key if r['completion_loss_block']]
         assert len(groups['unresolved_65'])==65 and len(groups['completion_loss_blocks_20'])==20,'Coordinator strata mismatch'
-    print(json.dumps({'status':'independent judgments; not adjudicated truth','reviewer_profiles':[{k:d[k] for k in ['reviewer','experience','relationship']} for d in [p,q]],'groups':{k:group(v,a,b) for k,v in groups.items()},'limitations':'Do not extrapolate unweighted sample counts to all blocks. Preserve uncertainty and disagreements; any reconciliation must be documented separately. Codes and attestations do not independently authenticate human identity.'},indent=2))
+    print(json.dumps({'status':'reviewer judgments; independence not established by these exports; not adjudicated truth','reviewer_profiles':[{k:d.get(k) for k in ['reviewer','experience','relationship','independent','attest']} for d in [p,q]],'groups':{k:group(v,a,b) for k,v in groups.items()},'limitations':'Do not extrapolate unweighted sample counts to all blocks. Preserve uncertainty and disagreements; any reconciliation must be documented separately. Version 2 does not collect profiles or independence declarations. Missing metadata is reported as null, not assumed. Reviewer identity, expertise and independence require separate evidence.'},indent=2))
 if __name__=='__main__':main()

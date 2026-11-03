@@ -9,6 +9,9 @@ class TestExports(unittest.TestCase):
         d=dict(packet_sha256=json.loads((R/'review/packet_manifest.json').read_text())['packet_sha256'],reviewer='TEST',experience='SOFTWARE TEST',relationship='external',independent=True,attest=True,rows=rows,case_count=99,csv_sha256=hashlib.sha256(raw).hexdigest())
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp)/'review-TEST-submission.json';c=p.with_name('review-TEST.csv');c.write_bytes(raw);p.write_text(json.dumps(d));self.assertEqual(len(load(p)[1]),99)
+            new=copy.deepcopy(d);new['schema_version']=2
+            for k in ['experience','relationship','independent','attest']:new.pop(k)
+            p.write_text(json.dumps(new));self.assertEqual(len(load(p)[1]),99)
             for mutate in [lambda x:x.update(packet_sha256='bad'),lambda x:x['rows'].pop(),lambda x:x['rows'][0].update(permission='bad'),lambda x:x['rows'][0].update(rationale='changed')]:
                 wrong=copy.deepcopy(d);mutate(wrong);p.write_text(json.dumps(wrong))
                 with self.assertRaises(AssertionError):load(p)
